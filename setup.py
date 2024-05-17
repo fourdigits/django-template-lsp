@@ -1,6 +1,4 @@
-import os
-
-from setuptools import Command, find_packages, setup
+from setuptools import find_packages, setup
 
 from djlsp import __version__
 

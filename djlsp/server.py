@@ -1,7 +1,10 @@
-from lsprotocol.types import (TEXT_DOCUMENT_COMPLETION,
-                              TEXT_DOCUMENT_DID_CHANGE, CompletionItem,
-                              CompletionList, CompletionOptions,
-                              CompletionParams, DidChangeTextDocumentParams)
+from lsprotocol.types import (
+    TEXT_DOCUMENT_COMPLETION,
+    CompletionItem,
+    CompletionList,
+    CompletionOptions,
+    CompletionParams,
+)
 from pygls.server import LanguageServer
 
 from djlsp import __version__
