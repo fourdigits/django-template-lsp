@@ -1,0 +1,30 @@
+# Static project files
+/env/
+
+# Python files
+.Python
+.python-version
+*.pyc
+__pycache__
+pip-selfcheck.json
+
+# Build files
+*.egg-info/
+/build/
+/dist/
+
+# OS and project files
+.DS_Store
+.mypy_cache
+.template-version
+.vscode
+.pytest_cache/
+.env
+*.swp
+.idea/
+.helix/
+
+# Coverage
+.coverage
+coverage.xml
+htmlcov/
