@@ -8,18 +8,20 @@ from lsprotocol.types import (
 from pygls.server import LanguageServer
 
 from djlsp import __version__
-from djlsp.completion import get_completions
+from djlsp.parser import TemplateParser
 
 server = LanguageServer("django-template-lsp", __version__)
 
 
 @server.feature(
-    TEXT_DOCUMENT_COMPLETION, CompletionOptions(trigger_characters=[" ", "|"])
+    TEXT_DOCUMENT_COMPLETION, CompletionOptions(trigger_characters=[" ", "|", "'"])
 )
 def completions(params: CompletionParams):
     items = []
     document = server.workspace.get_document(params.text_document.uri)
-    line_fragment = document.lines[params.position.line][: params.position.character]
-    for completion in get_completions(line_fragment):
+    template = TemplateParser(document)
+    for completion in template.completions(
+        params.position.line, params.position.character
+    ):
         items.append(CompletionItem(label=completion))
     return CompletionList(is_incomplete=False, items=items)

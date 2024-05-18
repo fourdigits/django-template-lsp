@@ -111,29 +111,3 @@ FILTERS = [
     "utc",
     "timezone",
 ]
-
-re_tag = re.compile(r"^.*{% ?(\w*)$")
-re_end_tag = re.compile(r"^.*{% ?(e\w*)$")
-re_filter = re.compile(r"^.*({%|{{) ?[\w \.\|]*\|(\w*)$")
-
-
-def get_completions(line_fragment):
-    # TODO: Maybe replace logic with tree-sitter
-
-    if match := re_filter.match(line_fragment):
-        search = match.group(2).lower()
-        for filter_name in FILTERS:
-            if filter_name.startswith(search):
-                yield filter_name
-    elif match := re_end_tag.match(line_fragment):
-        # TODO only show end tags for open/used tags
-        search = match.group(1).lower()
-        for tag in TAGS:
-            end_tag = f"end{tag}"
-            if end_tag.startswith(search):
-                yield end_tag
-    elif match := re_tag.match(line_fragment):
-        search = match.group(1)
-        for tag in TAGS + SIMPLE_TAGS:
-            if tag.startswith(search):
-                yield tag
