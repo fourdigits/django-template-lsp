@@ -27,6 +27,7 @@ setup(
     ],
     extras_require={
         "dev": [
+            "tox",
             "black",
             "isort",
             "flake8",

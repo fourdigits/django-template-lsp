@@ -1,7 +1,7 @@
 ENV = env
 BIN = $(ENV)/bin
 PYTHON = $(BIN)/python
-CODE_LOCATIONS = djlsp setup.py
+CODE_LOCATIONS = djlsp setup.py tests
 
 clean:
 	rm -rf $(ENV)
@@ -26,6 +26,9 @@ lint:
 	$(BIN)/black --check $(CODE_LOCATIONS)
 	$(BIN)/isort --check-only $(CODE_LOCATIONS)
 	$(BIN)/flake8 $(CODE_LOCATIONS)
+
+test: lint
+	$(BIN)/tox run
 
 .PHONY: build
 build:
