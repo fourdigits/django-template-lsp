@@ -15,6 +15,7 @@ setup(
     long_description=readme(),
     long_description_content_type="text/markdown",
     packages=find_packages(include=["djlsp", "djlsp.*"]),
+    package_data={"djlsp": ["scripts/*.py"]},
     entry_points={
         "console_scripts": [
             "djlsp = djlsp.cli:main",
