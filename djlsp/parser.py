@@ -57,7 +57,7 @@ class TemplateParser:
         return []
 
     def get_load_completions(self, match: Match):
-        prefix = match.group(1)
+        prefix = match.group(1).split(" ")[-1]
         logger.debug(f"Find load matches for: {prefix}")
         return sorted(
             [
