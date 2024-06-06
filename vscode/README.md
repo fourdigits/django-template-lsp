@@ -10,7 +10,7 @@ Make sure you have installed the python `django-template-lsp` package on your sy
 pipx install django-template-lsp
 ```
 
-Then, install this extension from the Visual Studio Code marketplace.
+Then, install the `djlsp` extension from the Visual Studio Code marketplace.
 
 
 ## Settings

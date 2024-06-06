@@ -45,3 +45,8 @@ Project settings `.helix/languages.toml`:
 [language-server.djlsp.config]
 django_settings_modules="<your.settings.module>"
 ```
+
+### VSCode
+
+To use the Django template LSP with VSCode read the following [readme](vscode/README.md)
+
