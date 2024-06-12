@@ -14,6 +14,7 @@ setup(
     description="Django template LSP",
     long_description=readme(),
     long_description_content_type="text/markdown",
+    license="GPL3",
     packages=find_packages(include=["djlsp", "djlsp.*"]),
     package_data={"djlsp": ["scripts/*.py"]},
     entry_points={
