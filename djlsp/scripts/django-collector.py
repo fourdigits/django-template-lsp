@@ -62,6 +62,34 @@ LIBRARIES_NODE_TAGS = {
 }
 
 
+def get_file_watcher_globs():
+    """
+    File watcher glob patterns used to trigger this collector script
+
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#pattern
+    """
+    patterns = [
+        "**/templates/**",
+        "**/templatetags/**",
+        "**/static/**",
+    ]
+
+    for static_path in settings.STATICFILES_DIRS:
+        static_folder = os.path.basename(static_path)
+        if static_folder != "static":
+            patterns.append(f"**/{static_folder}/**")
+
+    for template_path in [
+        *Engine.get_default().dirs,
+        *get_app_template_dirs("templates"),
+    ]:
+        template_folder = os.path.basename(template_path)
+        if template_folder != "templates":
+            patterns.append(f"**/{template_folder}/**")
+
+    return patterns
+
+
 def get_static_files():
     # TODO: Add option to ignore some static folders
     # (like static that is generated with a JS bundler)
@@ -181,6 +209,7 @@ def get_templates():
 
 def collect_project_data():
     return {
+        "file_watcher_globs": get_file_watcher_globs(),
         "static_files": get_static_files(),
         "urls": get_urls(),
         "libraries": get_libraries(),

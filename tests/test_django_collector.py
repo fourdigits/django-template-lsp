@@ -30,3 +30,10 @@ def test_django_collect():
     assert "django_app.html" in django_data["templates"]
     assert "django_app.js" in django_data["static_files"]
     assert "django_app:index" in django_data["urls"]
+    assert set(django_data["file_watcher_globs"]) == {
+        "**/templates/**",
+        "**/templatetags/**",
+        "**/static/**",
+        "**/test-templates-folder/**",
+        "**/test-static-folder/**",
+    }
