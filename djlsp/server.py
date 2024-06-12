@@ -3,15 +3,22 @@ import logging
 import os
 import shutil
 import subprocess
+import uuid
 
 from lsprotocol.types import (
     INITIALIZE,
     TEXT_DOCUMENT_COMPLETION,
+    WORKSPACE_DID_CHANGE_WATCHED_FILES,
     CompletionItem,
     CompletionList,
     CompletionOptions,
     CompletionParams,
+    DidChangeWatchedFilesParams,
+    DidChangeWatchedFilesRegistrationOptions,
+    FileSystemWatcher,
     InitializeParams,
+    Registration,
+    RegistrationParams,
 )
 from pygls.server import LanguageServer
 
@@ -39,6 +46,8 @@ class DjangoTemplateLanguageServer(LanguageServer):
 
     def __init__(self, *args):
         super().__init__(*args)
+        self.file_watcher_id = str(uuid.uuid4())
+        self.current_file_watcher_globs = FALLBACK_DJANGO_DATA["file_watcher_globs"]
         self.docker_compose_file = "docker-compose.yml"
         self.docker_compose_service = "django"
         self.django_settings_module = ""
@@ -53,6 +62,27 @@ class DjangoTemplateLanguageServer(LanguageServer):
         )
         self.django_settings_module = options.get(
             "django_settings_module", self.django_settings_module
+        )
+
+    def set_file_watcher_capability(self):
+        logger.info(
+            f"Update file watcher patterns to: {self.current_file_watcher_globs}"
+        )
+        self.register_capability(
+            RegistrationParams(
+                registrations=[
+                    Registration(
+                        id=self.file_watcher_id,
+                        method=WORKSPACE_DID_CHANGE_WATCHED_FILES,
+                        register_options=DidChangeWatchedFilesRegistrationOptions(
+                            watchers=[
+                                FileSystemWatcher(glob_pattern=glob_pattern)
+                                for glob_pattern in self.current_file_watcher_globs
+                            ]
+                        ),
+                    )
+                ]
+            )
         )
 
     def get_django_data(self):
@@ -73,6 +103,12 @@ class DjangoTemplateLanguageServer(LanguageServer):
             logger.info(f" - Urls: {len(django_data['urls'])}")
         else:
             logger.info("Could not collect Django data")
+
+        if "file_watcher_globs" in django_data and set(
+            django_data["file_watcher_globs"]
+        ) != set(self.current_file_watcher_globs):
+            self.current_file_watcher_globs = django_data["file_watcher_globs"]
+            self.set_file_watcher_capability()
 
     def _get_python_path(self):
         for env_dir in self.ENV_DIRECTORIES:
@@ -183,6 +219,7 @@ def initialized(ls: DjangoTemplateLanguageServer, params: InitializeParams):
     if params.initialization_options:
         ls.set_initialization_options(params.initialization_options)
     ls.get_django_data()
+    ls.set_file_watcher_capability()
 
 
 @server.feature(
@@ -199,3 +236,13 @@ def completions(ls: DjangoTemplateLanguageServer, params: CompletionParams):
     ):
         items.append(CompletionItem(label=completion))
     return CompletionList(is_incomplete=False, items=items)
+
+
+@server.feature(WORKSPACE_DID_CHANGE_WATCHED_FILES)
+def files_changed(
+    ls: DjangoTemplateLanguageServer, params: DidChangeWatchedFilesParams
+):
+    logger.info(f"COMMAND: {WORKSPACE_DID_CHANGE_WATCHED_FILES}")
+    logger.debug(f"PARAMS: {params}")
+    # TODO: Do partial collect based on changed file type
+    ls.get_django_data()

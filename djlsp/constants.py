@@ -1,6 +1,11 @@
 BUILTIN = "__builtins__"
 
 FALLBACK_DJANGO_DATA = {
+    "file_watcher_globs": [
+        "**/templates/**",
+        "**/templatetags/**",
+        "**/static/**",
+    ],
     "static_files": [],
     "urls": [],
     "templates": [],
