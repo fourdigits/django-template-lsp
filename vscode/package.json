@@ -3,7 +3,7 @@
 	"description": "A django template lsp client",
 	"author": "Four Digits",
 	"license": "GPL3",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/fourdigits/django-template-lsp"
