@@ -30,6 +30,11 @@
 			"type": "object",
 			"title": "Django Template LSP",
 			"properties": {
+				"djangoTemplateLsp.djlspPath": {
+					"type": "string",
+					"default": "",
+					"description": "The path to the djlsp executable, by default it will search for djlsp in your .local directory"
+				},
 				"djangoTemplateLsp.dockerComposeFile": {
 					"type": "string",
 					"default": "docker-compose.yml",

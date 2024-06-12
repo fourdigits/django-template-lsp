@@ -16,6 +16,7 @@ Then, install the `djlsp` extension from the Visual Studio Code marketplace.
 ## Settings
 
 Within the `settings.json` file, you can configure the following settings:
+- `djangoTemplateLsp.djlspPath`: Path to the `djlsp` executable. When empty it will look for djlsp in your ~/.local/ directory Default: ``
 - `djangoTemplateLsp.dockerComposeFile`: Docker Compose file name. Default: `docker-compose.yml`
 - `djangoTemplateLsp.dockerServiceName`: Docker service name. Default: `django`
 - `djangoTemplateLsp.djangoSettingsModule`: Django settings module. Default: ``
