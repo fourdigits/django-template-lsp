@@ -3,6 +3,7 @@ import importlib
 import inspect
 import json
 import os
+import re
 import sys
 
 import django
@@ -10,7 +11,7 @@ from django.apps import apps
 from django.conf import settings
 from django.contrib.staticfiles.finders import get_finders
 from django.template.backends.django import get_installed_libraries
-from django.template.engine import Engine
+from django.template.engine import Engine, Template
 from django.template.library import InvalidTemplateLibrary
 from django.template.utils import get_app_template_dirs
 from django.urls import URLPattern, URLResolver
@@ -194,17 +195,50 @@ def get_libraries():
 
 
 def get_templates():
-    template_files = []
+    template_files = {}
+    default_engine = Engine.get_default()
     for templates_dir in [
-        *Engine.get_default().dirs,
+        *default_engine.dirs,
         *get_app_template_dirs("templates"),
     ]:
         for root, dirs, files in os.walk(templates_dir):
             for file in files:
-                template_files.append(
-                    os.path.relpath(os.path.join(root, file), templates_dir)
-                )
+                template_name = os.path.relpath(os.path.join(root, file), templates_dir)
+
+                if template_name in template_files:
+                    # Skip already procecesed template
+                    # (template have duplicates because other apps can override)
+                    continue
+
+                # Get used template (other apps can override templates)
+                django_template = default_engine.get_template(template_name)
+                template_files[template_name] = _parse_template(django_template)
     return template_files
+
+
+re_extends = re.compile(r""".*{% ?extends ['"](.*)['"] ?%}.*""")
+re_loaded = re.compile(r".*{% ?load ([\w ]*) ?%}$")
+re_block = re.compile(r".*{% ?block (\w*) ?%}.*")
+
+
+def _parse_template(django_template: Template):
+    extends = None
+    loaded_libraries = set()
+    blocks = set()
+    for line in django_template.source.splitlines():
+        if match := re_extends.match(line):
+            extends = match.group(1)
+        if match := re_loaded.match(line):
+            loaded_libraries.update(match.group(1).strip().split(" "))
+        if match := re_block.match(line):
+            blocks.add(match.group(1))
+
+    return {
+        "extends": extends,
+        "loaded_libraries": list(loaded_libraries),
+        "blocks": list(blocks),
+        "context": {},  # TODO: Find view/model/contectprocessors
+    }
 
 
 def collect_project_data():

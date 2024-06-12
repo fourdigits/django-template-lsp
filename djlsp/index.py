@@ -3,17 +3,11 @@ from dataclasses import dataclass, field
 
 @dataclass
 class Template:
-    file_path: str = ""
-    workspace_file_path: str = ""
-    context: dict = field(default_factory=dict)
-    # Attributes filled by parser
+    name: str = ""
     extends: str | None = None
     loaded_libraries: list[str] | None = None
     blocks: list[str] | None = None
-
-    def clear(self):
-        self.extends = None
-        self.blocks = None
+    context: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -63,21 +57,7 @@ class WorkspaceIndex:
         #         for library in libraries
         #     }
 
-        # TODO: Add Support in django collector
-        # Update templates
-        # if templates := django_data.get("templates"):
-        #     found_templates = []
-        #     for template in templates:
-        #         # TODO: how to handle template override
-        #         file_path = template.get("file_path")
-        #         found_templates.append(file_path)
-        #         if file_path in self.templates:
-        #             self.templates[file_path].context = template.get("context", dict)
-        #         else:
-        #             self.templates[file_path] = Template(
-        #                 file_path=file_path,
-        #                 workspace_file_path=template.get("workspace_file_path", ""),
-        #                 context=template.get("context", dict),
-        #             )
-
-        #     self.templates = [t for t in self.templates if t in found_templates]
+        self.templates = {
+            name: Template(name=name, **options)
+            for name, options in django_data.get("templates", {}).items()
+        }
