@@ -18,11 +18,18 @@ export function activate(context: ExtensionContext) {
 		return home ? filePath.replace('~', home) : filePath;
 	};
 
-	// Check if djlsp is installed
-	const djlspPaths = [
-		'~/.local/bin/djlsp',
-		'~/.local/pipx/venvs/django-template-lsp/bin/djlsp',
-	].map(expandHomeDir);
+	const configuration = workspace.getConfiguration('djangoTemplateLsp');
+
+	const djlspPaths = [];
+
+	const djlspPathConfig = configuration.get('djlspPath', false);
+
+	if (djlspPathConfig) {
+		djlspPaths.push(expandHomeDir(djlspPathConfig));
+	} else {
+		djlspPaths.push(expandHomeDir('~/.local/bin/djlsp'));
+		djlspPaths.push(expandHomeDir('~/.local/pipx/venvs/django-template-lsp/bin/djlsp'));
+	}
 
 	const djlspPath = djlspPaths.find(fs.existsSync);
 
@@ -30,8 +37,6 @@ export function activate(context: ExtensionContext) {
 	if (!djlspPath) {
 		throw new Error('djlsp is not installed');
 	}
-
-	const configuration = workspace.getConfiguration('djangoTemplateLsp');
 
 	const djlspArgs = [];
 
