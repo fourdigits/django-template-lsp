@@ -2,7 +2,7 @@
 	"name": "djlsp",
 	"description": "A django template lsp client",
 	"author": "Four Digits",
-	"license": "MIT",
+	"license": "GPL3",
 	"version": "0.0.1",
 	"repository": {
 		"type": "git",
