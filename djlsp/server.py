@@ -145,24 +145,26 @@ class DjangoTemplateLanguageServer(LanguageServer):
         try:
             return json.loads(
                 subprocess.check_output(
-                    filter(
-                        None,
-                        [
-                            "docker",
-                            "compose",
-                            f"--file={docker_compose_path}",
-                            "run",
-                            "--rm",
-                            f"--volume={DJANGO_COLLECTOR_SCRIPT_PATH}:/django-collector.py",  # noqa: E501
-                            self.docker_compose_service,
-                            "python",
-                            "/django-collector.py",
-                            (
-                                f"--django-settings-module={self.django_settings_module}"  # noqa: E501
-                                if self.django_settings_module
-                                else None
-                            ),
-                        ],
+                    list(
+                        filter(
+                            None,
+                            [
+                                "docker",
+                                "compose",
+                                f"--file={docker_compose_path}",
+                                "run",
+                                "--rm",
+                                f"--volume={DJANGO_COLLECTOR_SCRIPT_PATH}:/django-collector.py",  # noqa: E501
+                                self.docker_compose_service,
+                                "python",
+                                "/django-collector.py",
+                                (
+                                    f"--django-settings-module={self.django_settings_module}"  # noqa: E501
+                                    if self.django_settings_module
+                                    else None
+                                ),
+                            ],
+                        )
                     )
                 ).decode()
             )
