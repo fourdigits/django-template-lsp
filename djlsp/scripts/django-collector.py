@@ -42,7 +42,7 @@ LIBRARIES_NODE_TAGS = {
         "endblock",
     ],
     "cache": [
-        # cache    sys.path.insert(0, dance_path)
+        # cache
         "endcache",
     ],
     "i18n": [
