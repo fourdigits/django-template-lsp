@@ -46,6 +46,23 @@ Project settings `.helix/languages.toml`:
 django_settings_modules="<your.settings.module>"
 ```
 
+### NeoVim
+
+In your lspconfig add the following
+
+```lua
+require'lspconfig'.djlsp.setup{
+    cmd = { "<path-to-djlsp>" },
+    settings = {
+        djlsp = {
+            django_settings_module = "<your.settings.module>"
+            docker_compose_file = "docker-compose.yml",
+            docker_compose_service = "django"
+        }
+    }
+}
+```
+
 ### VSCode
 
 To use the Django template LSP with VSCode read the following [readme](vscode/README.md)
