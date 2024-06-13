@@ -11,7 +11,7 @@ from django.apps import apps
 from django.conf import settings
 from django.contrib.staticfiles.finders import get_finders
 from django.template.backends.django import get_installed_libraries
-from django.template.engine import Engine, Template
+from django.template.engine import Engine
 from django.template.library import InvalidTemplateLibrary
 from django.template.utils import get_app_template_dirs
 from django.urls import URLPattern, URLResolver
@@ -239,13 +239,20 @@ def get_templates():
                     continue
 
                 # Get used template (other apps can override templates)
-                try:
-                    django_template = default_engine.get_template(template_name)
-                except Exception:
-                    # TODO: On TemplateSyntaxError maybe use file directly
-                    continue
-                template_files[template_name] = _parse_template(django_template)
+                template_files[template_name] = _parse_template(
+                    _get_template_content(default_engine, template_name)
+                )
     return template_files
+
+
+def _get_template_content(engine: Engine, template_name):
+    for loader in engine.template_loaders:
+        for origin in loader.get_template_sources(template_name):
+            try:
+                return loader.get_contents(origin)
+            except Exception:
+                pass
+    return ""
 
 
 re_extends = re.compile(r""".*{% ?extends ['"](.*)['"] ?%}.*""")
@@ -253,11 +260,11 @@ re_loaded = re.compile(r".*{% ?load ([\w ]*) ?%}$")
 re_block = re.compile(r".*{% ?block (\w*) ?%}.*")
 
 
-def _parse_template(django_template: Template):
+def _parse_template(content):
     extends = None
     loaded_libraries = set()
     blocks = set()
-    for line in django_template.source.splitlines():
+    for line in content.splitlines():
         if match := re_extends.match(line):
             extends = match.group(1)
         if match := re_loaded.match(line):
