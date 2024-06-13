@@ -19,6 +19,7 @@ class TemplateParser:
     re_tag = re.compile(r"^.*{% ?(\w*)$")
     re_filter = re.compile(r"^.*({%|{{) ?[\w \.\|]*\|(\w*)$")
     re_template = re.compile(r""".*{% ?(extends|include) ('|")([\w\-:]*)$""")
+    re_context = re.compile(r".*({{|{% \w+).* ([\w\d_\.]*)$")
 
     def __init__(self, workspace_index: WorkspaceIndex, document: TextDocument):
         self.workspace_index: WorkspaceIndex = workspace_index
@@ -54,6 +55,8 @@ class TemplateParser:
             return self.get_tag_completions(match)
         elif match := self.re_filter.match(line_fragment):
             return self.get_filter_completions(match)
+        elif match := self.re_context.match(line_fragment):
+            return self.get_context_completions(match)
 
         return []
 
@@ -123,3 +126,28 @@ class TemplateParser:
         return sorted(
             [filter_name for filter_name in filters if filter_name.startswith(prefix)]
         )
+
+    def get_context_completions(self, match: Match):
+        prefix = match.group(2)
+        logger.debug(f"Find context matches for: {prefix}")
+        context = self.workspace_index.global_template_context.copy()
+
+        prefix, lookup_context = self._recursive_context_lookup(
+            prefix.strip().split("."), context
+        )
+
+        return [var for var in lookup_context if var.startswith(prefix)]
+
+    def _recursive_context_lookup(self, parts: [str], context: dict[str, str]):
+        if len(parts) == 1:
+            return parts[0], context
+
+        variable, *parts = parts
+
+        # Get new context
+        if variable_type := context.get(variable):
+            if new_context := self.workspace_index.object_types.get(variable_type):
+                return self._recursive_context_lookup(parts, new_context)
+
+        # No suggesions found
+        return "", []

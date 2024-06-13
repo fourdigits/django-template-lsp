@@ -134,4 +134,7 @@ FALLBACK_DJANGO_DATA = {
         },
     },
     "templates": {},
+    "global_template_context": {
+        "csrf_token": {},
+    },
 }
