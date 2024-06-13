@@ -13,7 +13,7 @@ class Template:
 @dataclass
 class Tag:
     name: str = ""
-    in_between_tags: list[str] = ""
+    inner_tags: list[str] = ""
     closing_tag: str = ""
 
 
@@ -39,23 +39,21 @@ class WorkspaceIndex:
         self.static_files = django_data.get("static_files", self.static_files)
         self.urls = django_data.get("urls", self.urls)
 
-        # TODO: add support in django collector
-        # if libraries := django_data.get("libraries"):
-        #     self.libraries = {
-        #         library.get("name"): Library(
-        #             name=library.get("name"),
-        #             filters=library.get("filters", []),
-        #             tags={
-        #                 tag.get("name"): Tag(
-        #                     name=tag.get("name"),
-        #                     in_between_tags=tag.get("in_between_tags", []),
-        #                     closing_tag=tag.get("closing_tag"),
-        #                 )
-        #                 for tag in library.get("tags", [])
-        #             },
-        #         )
-        #         for library in libraries
-        #     }
+        self.libraries = {
+            lib_name: Library(
+                name=lib_name,
+                filters=lib_data.get("filters", []),
+                tags={
+                    tag: Tag(
+                        name=tag,
+                        inner_tags=tag_options.get("inner_tags", []),
+                        closing_tag=tag_options.get("closing_tag"),
+                    )
+                    for tag, tag_options in lib_data.get("tags", {}).items()
+                },
+            )
+            for lib_name, lib_data in django_data.get("libraries", {}).items()
+        }
 
         self.templates = {
             name: Template(name=name, **options)
