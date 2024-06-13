@@ -37,3 +37,7 @@ build:
 
 upload:
 	$(BIN)/twine upload --skip-existing dist/*
+
+build-vscode-extension:
+	npm --prefix ./vscode/ run compile
+	npm --prefix ./vscode/ run vsce-package

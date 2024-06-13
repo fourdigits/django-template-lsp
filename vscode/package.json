@@ -65,7 +65,7 @@
 		"lint": "eslint ./client/src --ext .ts,.tsx",
 		"fix": "eslint ./client/src --ext .ts,.tsx --fix",
 		"postinstall": "cd client && npm install && cd ..",
-		"vsce-package": "vsce package -o djlsp.vsix"
+		"vsce-package": "vsce package --skip-license -o djlsp.vsix"
 	},
 	"devDependencies": {
 		"@types/mocha": "^10.0.6",
