@@ -227,7 +227,7 @@ def initialized(ls: DjangoTemplateLanguageServer, params: InitializeParams):
 
 
 @server.feature(
-    TEXT_DOCUMENT_COMPLETION, CompletionOptions(trigger_characters=[" ", "|", "'"])
+    TEXT_DOCUMENT_COMPLETION, CompletionOptions(trigger_characters=[" ", "|", "'", "."])
 )
 def completions(ls: DjangoTemplateLanguageServer, params: CompletionParams):
     logger.info(f"COMMAND: {TEXT_DOCUMENT_COMPLETION}")

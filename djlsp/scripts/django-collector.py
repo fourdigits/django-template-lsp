@@ -129,6 +129,8 @@ TEMPLATE_CONTEXT_PROCESSORS = {
     },
 }
 
+WAGTAIL_PAGE_TEMPLATE_LOOKUP = None
+
 
 def get_file_watcher_globs():
     """
@@ -158,7 +160,34 @@ def get_file_watcher_globs():
     return patterns
 
 
-def get_object_types():
+def _build_wagtail_page_template_lookup():
+    try:
+        from wagtail.models import Page
+    except ImportError:
+        return {}
+    wagtail_page_template_lookup = {}
+    models = apps.get_models()
+    for model in models:
+        if issubclass(model, Page):
+            wagtail_page_template_lookup[model.template] = {
+                "page": model.__module__ + "." + model.__name__,
+                "self": model.__module__ + "." + model.__name__,
+            }
+            if model.context_object_name:
+                wagtail_page_template_lookup[model.template][
+                    model.context_object_name
+                ] = (model.__module__ + "." + model.__name__)
+    return wagtail_page_template_lookup
+
+
+def get_wagtail_page_context(template_name: str) -> dict:
+    global WAGTAIL_PAGE_TEMPLATE_LOOKUP
+    if WAGTAIL_PAGE_TEMPLATE_LOOKUP is None:
+        WAGTAIL_PAGE_TEMPLATE_LOOKUP = _build_wagtail_page_template_lookup()
+    return WAGTAIL_PAGE_TEMPLATE_LOOKUP.get(template_name, {})
+
+
+def get_object_types() -> dict:
     models = apps.get_models()
     object_types = {}
     for model in models:
@@ -295,12 +324,12 @@ def get_templates():
 
                 # Get used template (other apps can override templates)
                 template_files[template_name] = _parse_template(
-                    _get_template_content(default_engine, template_name)
+                    _get_template_content(default_engine, template_name), template_name
                 )
     return template_files
 
 
-def _get_template_content(engine: Engine, template_name):
+def _get_template_content(engine: Engine, template_name: str):
     for loader in engine.template_loaders:
         for origin in loader.get_template_sources(template_name):
             try:
@@ -331,7 +360,7 @@ def get_global_template_context():
     return global_context
 
 
-def _parse_template(content):
+def _parse_template(content, template_name: str) -> dict:
     extends = None
     blocks = set()
     for line in content.splitlines():
@@ -343,7 +372,9 @@ def _parse_template(content):
     return {
         "extends": extends,
         "blocks": list(blocks),
-        "context": {},  # TODO: Find view/model/contectprocessors
+        "context": get_wagtail_page_context(
+            template_name
+        ),  # TODO: Find view/model/contectprocessors
     }
 
 
