@@ -9,6 +9,7 @@ import sys
 import django
 from django.apps import apps
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.contrib.staticfiles.finders import get_finders
 from django.template.backends.django import get_installed_libraries
 from django.template.engine import Engine
@@ -80,6 +81,51 @@ LIBRARIES_NODE_TAGS = {
         "timezone": {
             "closing_tag": "endtimezone",
         },
+    },
+}
+
+# Context processors are functions and therefore hard to parse
+# Use hardcoded mapping for know context processors.
+TEMPLATE_CONTEXT_PROCESSORS = {
+    # Django
+    "django.template.context_processors.csrf": {
+        "csrf_token": None,
+    },
+    "django.template.context_processors.debug": {
+        "debug": None,
+        "sql_queries": None,
+    },
+    "django.template.context_processors.i18n": {
+        "LANGUAGES": None,
+        "LANGUAGE_CODE": None,
+        "LANGUAGE_BIDI": None,
+    },
+    "django.template.context_processors.tz": {
+        "TIME_ZONE": None,
+    },
+    "django.template.context_processors.static": {
+        "STATIC_URL": None,
+    },
+    "django.template.context_processors.media": {
+        "MEDIA_URL": None,
+    },
+    "django.template.context_processors.request": {
+        "request": None,
+    },
+    # Django: auth
+    "django.contrib.auth.context_processors.auth": {
+        "user": None,
+        "perms": None,
+    },
+    # Django: messages
+    "django.contrib.messages.context_processors.messages": {
+        "messages": None,
+        "DEFAULT_MESSAGE_LEVELS": None,
+    },
+    # Wagtail: settings
+    "wagtail.contrib.settings.context_processors.settings": {
+        # TODO: add fake settings object type with reference to models
+        "settings": None,
     },
 }
 
@@ -268,6 +314,23 @@ re_extends = re.compile(r""".*{% ?extends ['"](.*)['"] ?%}.*""")
 re_block = re.compile(r".*{% ?block (\w*) ?%}.*")
 
 
+def get_global_template_context():
+    global_context = {}
+
+    # Update object types
+    TEMPLATE_CONTEXT_PROCESSORS["django.contrib.auth.context_processors.auth"][
+        "user"
+    ] = f"{get_user_model().__module__}.{get_user_model().__name__}"
+
+    for context_processor in Engine.get_default().template_context_processors:
+        module_path = ".".join(
+            [context_processor.__module__, context_processor.__name__]
+        )
+        if context := TEMPLATE_CONTEXT_PROCESSORS.get(module_path):
+            global_context.update(context)
+    return global_context
+
+
 def _parse_template(content):
     extends = None
     blocks = set()
@@ -291,6 +354,7 @@ def collect_project_data():
         "urls": get_urls(),
         "libraries": get_libraries(),
         "templates": get_templates(),
+        "global_template_context": get_global_template_context(),
         "object_types": get_object_types(),
     }
 

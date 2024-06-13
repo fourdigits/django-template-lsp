@@ -103,6 +103,9 @@ class DjangoTemplateLanguageServer(LanguageServer):
             logger.info(f" - Templates: {len(django_data['templates'])}")
             logger.info(f" - Static files: {len(django_data['static_files'])}")
             logger.info(f" - Urls: {len(django_data['urls'])}")
+            logger.info(
+                f" - Global context: {len(django_data['global_template_context'])}"
+            )
         else:
             logger.info("Could not collect Django data")
 
