@@ -256,25 +256,20 @@ def _get_template_content(engine: Engine, template_name):
 
 
 re_extends = re.compile(r""".*{% ?extends ['"](.*)['"] ?%}.*""")
-re_loaded = re.compile(r".*{% ?load ([\w ]*) ?%}$")
 re_block = re.compile(r".*{% ?block (\w*) ?%}.*")
 
 
 def _parse_template(content):
     extends = None
-    loaded_libraries = set()
     blocks = set()
     for line in content.splitlines():
         if match := re_extends.match(line):
             extends = match.group(1)
-        if match := re_loaded.match(line):
-            loaded_libraries.update(match.group(1).strip().split(" "))
         if match := re_block.match(line):
             blocks.add(match.group(1))
 
     return {
         "extends": extends,
-        "loaded_libraries": list(loaded_libraries),
         "blocks": list(blocks),
         "context": {},  # TODO: Find view/model/contectprocessors
     }

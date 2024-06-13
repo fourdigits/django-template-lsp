@@ -1,5 +1,4 @@
 import logging
-import os
 import re
 from functools import cached_property
 from re import Match
@@ -28,13 +27,15 @@ class TemplateParser:
     @cached_property
     def loaded_libraries(self):
         loaded = {BUILTIN}
-        # TODO: split on all aviable template dirs
-        if "templates" in self.document.path:
-            template_name = self.document.path.split(f"{os.sep}templates{os.sep}", 1)[1]
-
-            if template := self.workspace_index.templates.get(template_name):
-                loaded.update(template.loaded_libraries)
-
+        for line in self.document.lines:
+            if match := self.re_loaded.match(line):
+                loaded.update(
+                    [
+                        lib
+                        for lib in match.group(1).strip().split(" ")
+                        if lib in self.workspace_index.libraries
+                    ]
+                )
         logger.debug(f"Loaded libraries: {loaded}")
         return loaded
 

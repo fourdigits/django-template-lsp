@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 class Template:
     name: str = ""
     extends: str | None = None
-    loaded_libraries: list[str] | None = None
     blocks: list[str] | None = None
     context: dict = field(default_factory=dict)
 
