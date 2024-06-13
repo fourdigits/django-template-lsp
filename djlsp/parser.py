@@ -42,21 +42,23 @@ class TemplateParser:
 
     def completions(self, line, character):
         line_fragment = self.document.lines[line][:character]
-
-        if match := self.re_load.match(line_fragment):
-            return self.get_load_completions(match)
-        if match := self.re_url.match(line_fragment):
-            return self.get_url_completions(match)
-        elif match := self.re_static.match(line_fragment):
-            return self.get_static_completions(match)
-        elif match := self.re_template.match(line_fragment):
-            return self.get_template_completions(match)
-        elif match := self.re_tag.match(line_fragment):
-            return self.get_tag_completions(match)
-        elif match := self.re_filter.match(line_fragment):
-            return self.get_filter_completions(match)
-        elif match := self.re_context.match(line_fragment):
-            return self.get_context_completions(match)
+        try:
+            if match := self.re_load.match(line_fragment):
+                return self.get_load_completions(match)
+            if match := self.re_url.match(line_fragment):
+                return self.get_url_completions(match)
+            elif match := self.re_static.match(line_fragment):
+                return self.get_static_completions(match)
+            elif match := self.re_template.match(line_fragment):
+                return self.get_template_completions(match)
+            elif match := self.re_tag.match(line_fragment):
+                return self.get_tag_completions(match)
+            elif match := self.re_filter.match(line_fragment):
+                return self.get_filter_completions(match)
+            elif match := self.re_context.match(line_fragment):
+                return self.get_context_completions(match)
+        except Exception as e:
+            logger.debug(e)
 
         return []
 
@@ -129,8 +131,12 @@ class TemplateParser:
 
     def get_context_completions(self, match: Match):
         prefix = match.group(2)
-        logger.debug(f"Finde context matches for: {prefix}")
+        logger.debug(f"Find context matches for: {prefix}")
         context = self.workspace_index.global_template_context.copy()
+        if "/templates/" in self.document.path:
+            template_name = self.document.path.split("/templates/", 1)[1]
+            if template := self.workspace_index.templates.get(template_name):
+                context.update(template.context)
 
         prefix, lookup_context = self._recursive_context_lookup(
             prefix.strip().split("."), context
