@@ -112,6 +112,15 @@ def get_file_watcher_globs():
     return patterns
 
 
+def get_object_types():
+    models = apps.get_models()
+    object_types = {}
+    for model in models:
+        model_path = model.__module__ + "." + model.__name__
+        object_types[model_path] = {field.name: None for field in model._meta.fields}
+    return object_types
+
+
 def get_static_files():
     # TODO: Add option to ignore some static folders
     # (like static that is generated with a JS bundler)
@@ -282,6 +291,7 @@ def collect_project_data():
         "urls": get_urls(),
         "libraries": get_libraries(),
         "templates": get_templates(),
+        "object_types": get_object_types(),
     }
 
 
