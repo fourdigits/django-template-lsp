@@ -3,6 +3,7 @@ import importlib
 import inspect
 import json
 import os
+import re
 import sys
 
 import django
@@ -18,47 +19,68 @@ from django.urls import URLPattern, URLResolver
 # Some tags are added with a Node, like end*, elif else.
 # TODO: Find a way of collecting these, for now hardcoded list
 LIBRARIES_NODE_TAGS = {
-    "__builtins__": [
-        # autoescape
-        "endautoescape",
-        # filter
-        "endfilter",
-        # for
-        "empty",
-        "endfor",
-        # if
-        "else",
-        "elif",
-        "endif"
-        # ifchanged
-        "endifchanged",
-        # spaceless
-        "endspaceless",
-        # verbatim
-        "endverbatim",
-        # with
-        "endwith",
-        # block
-        "endblock",
-    ],
-    "cache": [
-        # cache
-        "endcache",
-    ],
-    "i18n": [
-        # language
-        "endlanguage",
-    ],
-    "l10n": [
-        # localize
-        "endlocalize",
-    ],
-    "tz": [
-        # localtime
-        "endlocaltime",
-        # timezone
-        "endtimezone",
-    ],
+    "__builtins__": {
+        "autoescape": {
+            "closing_tag": "endautoescape",
+        },
+        "filter": {
+            "closing_tag": "endfilter",
+        },
+        "for": {
+            "inner_tags": [
+                "empty",
+            ],
+            "closing_tag": "endfor",
+        },
+        "if": {
+            "inner_tags": [
+                "else",
+                "elif",
+            ],
+            "closing_tag": "endif",
+        },
+        "ifchanged": {
+            "closing_tag": "endifchanged",
+        },
+        "spaceless": {
+            "closing_tag": "endspaceless",
+        },
+        "verbatim": {
+            "closing_tag": "endverbatim",
+        },
+        "with": {
+            "closing_tag": "endwith",
+        },
+        "block": {
+            "closing_tag": "endblock",
+        },
+        "comment": {
+            "closing_tag": "endcomment",
+        },
+    },
+    "cache": {
+        "cache": {
+            "closing_tag": "endcache",
+        }
+    },
+    "i18n": {
+        "language": {
+            "closing_tag": "endlanguage",
+        }
+    },
+    "l10n": {
+        "localize": {
+            "closing_tag": "endlocalize",
+        }
+    },
+    "tz": {
+        "localtime": {
+            "closing_tag": "endlocaltime",
+        },
+        "timezone": {
+            "closing_tag": "endtimezone",
+        },
+    },
 }
 
 
@@ -135,7 +157,7 @@ def get_urls():
 def get_libraries():
     libraries = {
         "__builtins__": {
-            "tags": [],
+            "tags": {},
             "filters": [],
         }
     }
@@ -143,7 +165,7 @@ def get_libraries():
     # Collect builtins
     for lib_mod_path in Engine.get_default().builtins:
         lib = importlib.import_module(lib_mod_path).register
-        libraries["__builtins__"]["tags"].extend(list(lib.tags.keys()))
+        libraries["__builtins__"]["tags"].update({tag: {} for tag in lib.tags.keys()})
         libraries["__builtins__"]["filters"].extend(list(lib.filters.keys()))
 
     # Get Django templatetags
@@ -156,7 +178,7 @@ def get_libraries():
             lib = get_installed_libraries()[django_lib]
             lib = importlib.import_module(lib).register
             libraries[django_lib] = {
-                "tags": list(lib.tags.keys()),
+                "tags": {tag: {} for tag in lib.tags.keys()},
                 "filters": list(lib.filters.keys()),
             }
         except (InvalidTemplateLibrary, KeyError):
@@ -181,30 +203,76 @@ def get_libraries():
                 continue
 
             libraries[taglib] = {
-                "tags": list(lib.tags.keys()),
+                "tags": {tag: {} for tag in lib.tags.keys()},
                 "filters": list(lib.filters.keys()),
             }
 
     # Add node tags
     for lib_name, tags in LIBRARIES_NODE_TAGS.items():
         if lib_name in libraries:
-            libraries[lib_name]["tags"].extend(tags)
+            for tag, options in tags.items():
+                if tag in libraries[lib_name]["tags"]:
+                    libraries[lib_name]["tags"][tag]["inner_tags"] = options.get(
+                        "inner_tags", []
+                    )
+                    libraries[lib_name]["tags"][tag]["closing_tag"] = options.get(
+                        "closing_tag"
+                    )
 
     return libraries
 
 
 def get_templates():
-    template_files = []
+    template_files = {}
+    default_engine = Engine.get_default()
     for templates_dir in [
-        *Engine.get_default().dirs,
+        *default_engine.dirs,
         *get_app_template_dirs("templates"),
     ]:
         for root, dirs, files in os.walk(templates_dir):
             for file in files:
-                template_files.append(
-                    os.path.relpath(os.path.join(root, file), templates_dir)
+                template_name = os.path.relpath(os.path.join(root, file), templates_dir)
+
+                if template_name in template_files:
+                    # Skip already procecesed template
+                    # (template have duplicates because other apps can override)
+                    continue
+
+                # Get used template (other apps can override templates)
+                template_files[template_name] = _parse_template(
+                    _get_template_content(default_engine, template_name)
                 )
     return template_files
+
+
+def _get_template_content(engine: Engine, template_name):
+    for loader in engine.template_loaders:
+        for origin in loader.get_template_sources(template_name):
+            try:
+                return loader.get_contents(origin)
+            except Exception:
+                pass
+    return ""
+
+
+re_extends = re.compile(r""".*{% ?extends ['"](.*)['"] ?%}.*""")
+re_block = re.compile(r".*{% ?block (\w*) ?%}.*")
+
+
+def _parse_template(content):
+    extends = None
+    blocks = set()
+    for line in content.splitlines():
+        if match := re_extends.match(line):
+            extends = match.group(1)
+        if match := re_block.match(line):
+            blocks.add(match.group(1))
+
+    return {
+        "extends": extends,
+        "blocks": list(blocks),
+        "context": {},  # TODO: Find view/model/contectprocessors
+    }
 
 
 def collect_project_data():

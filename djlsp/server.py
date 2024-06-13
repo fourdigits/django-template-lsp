@@ -24,6 +24,7 @@ from pygls.server import LanguageServer
 
 from djlsp import __version__
 from djlsp.constants import FALLBACK_DJANGO_DATA
+from djlsp.index import WorkspaceIndex
 from djlsp.parser import TemplateParser
 
 logger = logging.getLogger(__name__)
@@ -47,11 +48,12 @@ class DjangoTemplateLanguageServer(LanguageServer):
     def __init__(self, *args):
         super().__init__(*args)
         self.file_watcher_id = str(uuid.uuid4())
-        self.current_file_watcher_globs = FALLBACK_DJANGO_DATA["file_watcher_globs"]
+        self.current_file_watcher_globs = []
         self.docker_compose_file = "docker-compose.yml"
         self.docker_compose_service = "django"
         self.django_settings_module = ""
-        self.django_data = FALLBACK_DJANGO_DATA
+        self.workspace_index = WorkspaceIndex()
+        self.workspace_index.update(FALLBACK_DJANGO_DATA)
 
     def set_initialization_options(self, options: dict):
         self.docker_compose_file = options.get(
@@ -95,7 +97,7 @@ class DjangoTemplateLanguageServer(LanguageServer):
 
         if django_data:
             # TODO: Maybe validate data
-            self.django_data = django_data
+            self.workspace_index.update(django_data)
             logger.info("Collected project Django data:")
             logger.info(f" - Libraries: {len(django_data['libraries'])}")
             logger.info(f" - Templates: {len(django_data['templates'])}")
@@ -104,10 +106,10 @@ class DjangoTemplateLanguageServer(LanguageServer):
         else:
             logger.info("Could not collect Django data")
 
-        if "file_watcher_globs" in django_data and set(
-            django_data["file_watcher_globs"]
-        ) != set(self.current_file_watcher_globs):
-            self.current_file_watcher_globs = django_data["file_watcher_globs"]
+        if set(self.workspace_index.file_watcher_globs) != set(
+            self.current_file_watcher_globs
+        ):
+            self.current_file_watcher_globs = self.workspace_index.file_watcher_globs
             self.set_file_watcher_capability()
 
     def _get_python_path(self):
@@ -219,7 +221,6 @@ def initialized(ls: DjangoTemplateLanguageServer, params: InitializeParams):
     if params.initialization_options:
         ls.set_initialization_options(params.initialization_options)
     ls.get_django_data()
-    ls.set_file_watcher_capability()
 
 
 @server.feature(
@@ -230,7 +231,7 @@ def completions(ls: DjangoTemplateLanguageServer, params: CompletionParams):
     logger.debug(f"PARAMS: {params}")
     items = []
     document = server.workspace.get_document(params.text_document.uri)
-    template = TemplateParser(ls.django_data, document)
+    template = TemplateParser(ls.workspace_index, document)
     for completion in template.completions(
         params.position.line, params.position.character
     ):

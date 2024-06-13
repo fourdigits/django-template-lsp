@@ -6,6 +6,7 @@ from re import Match
 from pygls.workspace import TextDocument
 
 from djlsp.constants import BUILTIN
+from djlsp.index import WorkspaceIndex
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +20,8 @@ class TemplateParser:
     re_filter = re.compile(r"^.*({%|{{) ?[\w \.\|]*\|(\w*)$")
     re_template = re.compile(r""".*{% ?(extends|include) ('|")([\w\-:]*)$""")
 
-    def __init__(self, django_data: dict, document: TextDocument):
-        self.django_data = django_data
+    def __init__(self, workspace_index: WorkspaceIndex, document: TextDocument):
+        self.workspace_index: WorkspaceIndex = workspace_index
         self.document: TextDocument = document
 
     @cached_property
@@ -32,7 +33,7 @@ class TemplateParser:
                     [
                         lib
                         for lib in match.group(1).strip().split(" ")
-                        if lib in self.django_data["libraries"]
+                        if lib in self.workspace_index.libraries
                     ]
                 )
         logger.debug(f"Loaded libraries: {loaded}")
@@ -62,7 +63,7 @@ class TemplateParser:
         return sorted(
             [
                 lib
-                for lib in self.django_data["libraries"].keys()
+                for lib in self.workspace_index.libraries.keys()
                 if lib != BUILTIN and lib.startswith(prefix)
             ]
         )
@@ -73,7 +74,7 @@ class TemplateParser:
         return sorted(
             [
                 static_file
-                for static_file in self.django_data["static_files"]
+                for static_file in self.workspace_index.static_files
                 if static_file.startswith(prefix)
             ]
         )
@@ -82,17 +83,16 @@ class TemplateParser:
         prefix = match.group(2)
         logger.debug(f"Find url matches for: {prefix}")
         return sorted(
-            [url for url in self.django_data["urls"] if url.startswith(prefix)]
+            [url for url in self.workspace_index.urls if url.startswith(prefix)]
         )
 
     def get_template_completions(self, match: Match):
         prefix = match.group(3)
         logger.debug(f"Find {match.group(1)} matches for: {prefix}")
-        logger.debug(self.django_data["templates"])
         return sorted(
             [
                 template
-                for template in self.django_data["templates"]
+                for template in self.workspace_index.templates
                 if template.startswith(prefix)
             ]
         )
@@ -102,9 +102,14 @@ class TemplateParser:
         logger.debug(f"Find tag matches for: {prefix}")
 
         tags = []
-        for name, lib in self.django_data["libraries"].items():
-            if name in self.loaded_libraries:
-                tags.extend(lib["tags"])
+        for lib_name in self.loaded_libraries:
+            if lib := self.workspace_index.libraries.get(lib_name):
+                for tag in lib.tags.values():
+                    tags.append(tag.name)
+                    # TODO: Only add inner/clossing if there is opening tag
+                    tags.extend(tag.inner_tags)
+                    if tag.closing_tag:
+                        tags.append(tag.closing_tag)
 
         return sorted([tag for tag in tags if tag.startswith(prefix)])
 
@@ -112,9 +117,9 @@ class TemplateParser:
         prefix = match.group(2)
         logger.debug(f"Find filter matches for: {prefix}")
         filters = []
-        for name, lib in self.django_data["libraries"].items():
-            if name in self.loaded_libraries:
-                filters.extend(lib["filters"])
+        for lib_name in self.loaded_libraries:
+            if lib := self.workspace_index.libraries.get(lib_name):
+                filters.extend(lib.filters)
         return sorted(
             [filter_name for filter_name in filters if filter_name.startswith(prefix)]
         )
