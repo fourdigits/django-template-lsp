@@ -46,14 +46,14 @@ Project settings `.helix/languages.toml`:
 django_settings_modules="<your.settings.module>"
 ```
 
-### NeoVim
+### Neovim
 
 In your lspconfig add the following
 
 ```lua
 require'lspconfig'.djlsp.setup{
     cmd = { "<path-to-djlsp>" },
-    settings = {
+    init_options = {
         djlsp = {
             django_settings_module = "<your.settings.module>"
             docker_compose_file = "docker-compose.yml",
