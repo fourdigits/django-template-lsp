@@ -5,6 +5,7 @@ import json
 import os
 import re
 import sys
+from unittest.mock import patch
 
 import django
 from django.apps import apps
@@ -390,6 +391,22 @@ def collect_project_data():
     }
 
 
+def get_default_django_settings_module():
+    try:
+        # Patch django execute to prevent it from running when calling main
+        with patch(
+            "django.core.management.execute_from_command_line", return_value=None
+        ):
+            from manage import main
+
+            # Need to run main becuase default env is set in main function
+            main()
+
+        return os.getenv("DJANGO_SETTINGS_MODULE")
+    except ImportError:
+        return ""
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="""
@@ -401,17 +418,21 @@ if __name__ == "__main__":
     parser.add_argument("--project-src", action="store", type=str)
     args = parser.parse_args()
 
-    if args.django_settings_module:
-        # TODO: Auto detect when empty?
-        os.environ.setdefault(
-            "DJANGO_SETTINGS_MODULE",
-            args.django_settings_module,
-        )
-
     if args.project_src:
         sys.path.insert(0, args.project_src)
     else:
         sys.path.insert(0, os.getcwd())
+
+    django_settings_module = (
+        args.django_settings_module
+        if args.django_settings_module
+        else get_default_django_settings_module()
+    )
+    if args.django_settings_module:
+        os.environ.setdefault(
+            "DJANGO_SETTINGS_MODULE",
+            django_settings_module,
+        )
 
     django.setup()
 
