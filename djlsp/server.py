@@ -55,6 +55,16 @@ class DjangoTemplateLanguageServer(LanguageServer):
         self.workspace_index = WorkspaceIndex()
         self.workspace_index.update(FALLBACK_DJANGO_DATA)
 
+    @property
+    def project_src_path(self):
+        if os.path.isdir(os.path.join(self.workspace.root_path, "src")):
+            return os.path.join(self.workspace.root_path, "src")
+        return self.workspace.root_path
+
+    @property
+    def docker_compose_path(self):
+        return os.path.join(self.workspace.root_path, self.docker_compose_file)
+
     def set_initialization_options(self, options: dict):
         self.docker_compose_file = options.get(
             "docker_compose_file", self.docker_compose_file
@@ -126,45 +136,39 @@ class DjangoTemplateLanguageServer(LanguageServer):
 
     def _get_django_data_from_python_path(self, python_path):
         logger.info(f"Collection django data from local python path: {python_path}")
-        project_src = self.workspace.root_path
-        if os.path.isdir(os.path.join(project_src, "src")):
-            project_src = os.path.join(project_src, "src")
 
-        logger.info(f" - For project path: {project_src}")
+        command = list(
+            filter(
+                None,
+                [
+                    python_path,
+                    DJANGO_COLLECTOR_SCRIPT_PATH,
+                    (
+                        f"--django-settings-module={self.django_settings_module}"  # noqa: E501
+                        if self.django_settings_module
+                        else None
+                    ),
+                    f"--project-src={self.project_src_path}",
+                ],
+            )
+        )
+
+        logger.debug(f"Collector command: {' '.join(command)}")
 
         try:
-            return json.loads(
-                subprocess.check_output(
-                    filter(
-                        None,
-                        [
-                            python_path,
-                            DJANGO_COLLECTOR_SCRIPT_PATH,
-                            (
-                                f"--django-settings-module={self.django_settings_module}"  # noqa: E501
-                                if self.django_settings_module
-                                else None
-                            ),
-                            f"--project-src={project_src}",
-                        ],
-                    )
-                ).decode()
-            )
+            return json.loads(subprocess.check_output(command).decode())
         except Exception as e:
             logger.error(e)
             return False
 
     def _has_valid_docker_service(self):
-        docker_compose_path = os.path.join(
-            self.workspace.root_path, self.docker_compose_file
-        )
-        if os.path.exists(docker_compose_path):
+        if os.path.exists(self.docker_compose_path):
             services = (
                 subprocess.check_output(
                     [
                         "docker",
                         "compose",
-                        f"--file={docker_compose_path}",
+                        f"--file={self.docker_compose_path}",
                         "config",
                         "--services",
                     ]
@@ -179,39 +183,78 @@ class DjangoTemplateLanguageServer(LanguageServer):
         logger.info(
             f"Collecting django data from docker {self.docker_compose_file}:{self.docker_compose_service}"  # noqa: E501
         )
-        docker_compose_path = os.path.join(
-            self.workspace.root_path, self.docker_compose_file
+
+        docker_image = self._get_docker_image()
+        if not docker_image:
+            return False
+
+        docker_run_command = list(
+            filter(
+                None,
+                [
+                    "docker",
+                    "run",
+                    "--rm",
+                    f"--volume={DJANGO_COLLECTOR_SCRIPT_PATH}:/django-collector.py",
+                    f"--volume={self.project_src_path}:/src",
+                    docker_image,
+                    "python",
+                    "/django-collector.py",
+                    (
+                        f"--django-settings-module={self.django_settings_module}"
+                        if self.django_settings_module
+                        else None
+                    ),
+                    "--project-src=/src",
+                ],
+            )
         )
 
+        logger.debug(f"Collector command: {' '.join(docker_run_command)}")
+
         try:
-            return json.loads(
-                subprocess.check_output(
-                    list(
-                        filter(
-                            None,
-                            [
-                                "docker",
-                                "compose",
-                                f"--file={docker_compose_path}",
-                                "run",
-                                "--rm",
-                                f"--volume={DJANGO_COLLECTOR_SCRIPT_PATH}:/django-collector.py",  # noqa: E501
-                                self.docker_compose_service,
-                                "python",
-                                "/django-collector.py",
-                                (
-                                    f"--django-settings-module={self.django_settings_module}"  # noqa: E501
-                                    if self.django_settings_module
-                                    else None
-                                ),
-                            ],
-                        )
-                    )
-                ).decode()
-            )
+            return json.loads(subprocess.check_output(docker_run_command).decode())
         except Exception as e:
             logger.error(e)
             return False
+
+    def _get_docker_image(self):
+        try:
+            # Make sure image is created
+            subprocess.check_call(
+                [
+                    "docker",
+                    "compose",
+                    f"--file={self.docker_compose_path}",
+                    "create",
+                    "--no-recreate",
+                    self.docker_compose_service,
+                ]
+            )
+        except Exception as e:
+            logger.error(e)
+            return None
+
+        try:
+            images = json.loads(
+                subprocess.check_output(
+                    [
+                        "docker",
+                        "compose",
+                        f"--file={self.docker_compose_path}",
+                        "images",
+                        self.docker_compose_service,
+                        "--format=json",
+                    ]
+                )
+            )
+        except Exception as e:
+            logger.error(e)
+            return None
+
+        if images:
+            return images[0]["ID"]
+        return None
 
 
 server = DjangoTemplateLanguageServer("django-template-lsp", __version__)
