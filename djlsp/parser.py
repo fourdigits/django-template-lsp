@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 class TemplateParser:
     re_loaded = re.compile(r".*{% ?load ([\w ]*) ?%}$")
     re_load = re.compile(r".*{% ?load ([\w ]*)$")
+    re_block = re.compile(r".*{% ?block ([\w]*)$")
     re_url = re.compile(r""".*{% ?url ('|")([\w\-:]*)$""")
     re_static = re.compile(r".*{% ?static ('|\")([\w\-\.\/]*)$")
     re_tag = re.compile(r"^.*{% ?(\w*)$")
@@ -45,6 +46,8 @@ class TemplateParser:
         try:
             if match := self.re_load.match(line_fragment):
                 return self.get_load_completions(match)
+            if match := self.re_block.match(line_fragment):
+                return self.get_block_completions(match)
             if match := self.re_url.match(line_fragment):
                 return self.get_url_completions(match)
             elif match := self.re_static.match(line_fragment):
@@ -72,6 +75,42 @@ class TemplateParser:
                 if lib != BUILTIN and lib.startswith(prefix)
             ]
         )
+
+    def get_block_completions(self, match: Match):
+        prefix = match.group(1).strip()
+        logger.debug(f"Find block matches for: {prefix}")
+        block_names = []
+        if "/templates/" in self.document.path:
+            template_name = self.document.path.split("/templates/", 1)[1]
+            if template := self.workspace_index.templates.get(template_name):
+                block_names = self._recursive_block_names(template.extends)
+
+        used_block_names = []
+        re_block = re.compile(r"{% ?block ([\w]*) ?%}")
+        for line in self.document.lines:
+            if matches := re_block.findall(line):
+                used_block_names.extend(matches)
+
+        return sorted(
+            [
+                name
+                for name in block_names
+                if name not in used_block_names and name.startswith(prefix)
+            ]
+        )
+
+    def _recursive_block_names(self, template_name, looked_up_templates=None):
+        looked_up_templates = looked_up_templates if looked_up_templates else []
+        looked_up_templates.append(template_name)
+
+        block_names = []
+        if template := self.workspace_index.templates.get(template_name):
+            block_names.extend(template.blocks)
+            if template.extends and template.extends not in looked_up_templates:
+                block_names.extend(
+                    self._recursive_block_names(template.extends, looked_up_templates)
+                )
+        return list(set(block_names))
 
     def get_static_completions(self, match: Match):
         prefix = match.group(2)
