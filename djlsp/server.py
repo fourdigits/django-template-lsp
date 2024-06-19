@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 import uuid
+from functools import cached_property
 
 from lsprotocol.types import (
     INITIALIZE,
@@ -55,10 +56,13 @@ class DjangoTemplateLanguageServer(LanguageServer):
         self.workspace_index = WorkspaceIndex()
         self.workspace_index.update(FALLBACK_DJANGO_DATA)
 
-    @property
+    @cached_property
     def project_src_path(self):
-        if os.path.isdir(os.path.join(self.workspace.root_path, "src")):
-            return os.path.join(self.workspace.root_path, "src")
+        """Root path to src files, auto detect based on manage.py file"""
+        for name in os.listdir(self.workspace.root_path):
+            src_path = os.path.join(self.workspace.root_path, name)
+            if os.path.exists(os.path.join(src_path, "manage.py")):
+                return src_path
         return self.workspace.root_path
 
     @property
