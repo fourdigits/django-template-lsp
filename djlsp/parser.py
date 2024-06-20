@@ -3,7 +3,7 @@ import re
 from functools import cached_property
 from re import Match
 
-from lsprotocol.types import CompletionItem
+from lsprotocol.types import CompletionItem, Hover
 from pygls.workspace import TextDocument
 
 from djlsp.constants import BUILTIN
@@ -34,6 +34,9 @@ class TemplateParser:
         logger.debug(f"Loaded libraries: {loaded}")
         return loaded
 
+    ###################################################################################
+    # Completions
+    ###################################################################################
     def completions(self, line, character):
         line_fragment = self.document.lines[line][:character]
         matchers = [
@@ -142,13 +145,18 @@ class TemplateParser:
         for lib_name in self.loaded_libraries:
             if lib := self.workspace_index.libraries.get(lib_name):
                 for tag in lib.tags.values():
-                    tags.append(tag.name)
+                    tags.append(
+                        CompletionItem(
+                            label=tag.name,
+                            documentation=tag.docs,
+                        )
+                    )
                     # TODO: Only add inner/clossing if there is opening tag
-                    tags.extend(tag.inner_tags)
+                    tags.extend([CompletionItem(label=tag) for tag in tag.inner_tags])
                     if tag.closing_tag:
-                        tags.append(tag.closing_tag)
+                        tags.append(CompletionItem(label=tag.closing_tag))
 
-        return [CompletionItem(label=tag) for tag in tags if tag.startswith(prefix)]
+        return [tag for tag in tags if tag.label.startswith(prefix)]
 
     def get_filter_completions(self, match: Match):
         prefix = match.group(2)
@@ -156,11 +164,19 @@ class TemplateParser:
         filters = []
         for lib_name in self.loaded_libraries:
             if lib := self.workspace_index.libraries.get(lib_name):
-                filters.extend(lib.filters)
+                filters.extend(
+                    [
+                        CompletionItem(
+                            label=filt.name,
+                            documentation=filt.docs,
+                        )
+                        for filt in lib.filters.values()
+                    ]
+                )
         return [
-            CompletionItem(label=filter_name)
+            filter_name
             for filter_name in filters
-            if filter_name.startswith(prefix)
+            if filter_name.label.startswith(prefix)
         ]
 
     def get_context_completions(self, match: Match):
@@ -195,3 +211,44 @@ class TemplateParser:
 
         # No suggesions found
         return "", []
+
+    ###################################################################################
+    # Hover
+    ###################################################################################
+    def hover(self, line, character):
+        line_fragment = self.document.lines[line][:character]
+        matchers = [
+            (re.compile(r"^.*({%|{{) ?[\w \.\|]*\|(\w*)$"), self.get_filter_hover),
+            (re.compile(r"^.*{% ?(\w*)$"), self.get_tag_hover),
+        ]
+        for regex, hover in matchers:
+            if match := regex.match(line_fragment):
+                return hover(line, character, match)
+        return None
+
+    def get_filter_hover(self, line, character, match: Match):
+        filter_name = self._get_full_hover_name(line, character, match.group(2))
+        logger.debug(f"Find filter hover for: {filter_name}")
+        for lib in self.workspace_index.libraries.values():
+            if lib.name in self.loaded_libraries and filter_name in lib.filters:
+                return Hover(
+                    contents=lib.filters[filter_name].docs,
+                )
+        return None
+
+    def get_tag_hover(self, line, character, match: Match):
+        tag_name = self._get_full_hover_name(line, character, match.group(1))
+        logger.debug(f"Find tag hover for: {tag_name}")
+        for lib in self.workspace_index.libraries.values():
+            if lib.name in self.loaded_libraries and tag_name in lib.tags:
+                return Hover(
+                    contents=lib.tags[tag_name].docs,
+                )
+        return None
+
+    def _get_full_hover_name(self, line, character, first_part):
+        if match_after := re.match(
+            r"^([\w\d]+).*", self.document.lines[line][character:]
+        ):
+            return first_part + match_after.group(1)
+        return first_part

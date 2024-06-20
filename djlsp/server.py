@@ -9,6 +9,7 @@ from functools import cached_property
 from lsprotocol.types import (
     INITIALIZE,
     TEXT_DOCUMENT_COMPLETION,
+    TEXT_DOCUMENT_HOVER,
     WORKSPACE_DID_CHANGE_WATCHED_FILES,
     CompletionList,
     CompletionOptions,
@@ -16,6 +17,7 @@ from lsprotocol.types import (
     DidChangeWatchedFilesParams,
     DidChangeWatchedFilesRegistrationOptions,
     FileSystemWatcher,
+    HoverParams,
     InitializeParams,
     Registration,
     RegistrationParams,
@@ -289,6 +291,20 @@ def completions(ls: DjangoTemplateLanguageServer, params: CompletionParams):
     except Exception as e:
         logger.error(e)
         return CompletionList(items=[])
+
+
+@server.feature(TEXT_DOCUMENT_HOVER)
+def hover(ls: DjangoTemplateLanguageServer, params: HoverParams):
+    logger.info(f"COMMAND: {TEXT_DOCUMENT_HOVER}")
+    logger.debug(f"PARAMS: {params}")
+    try:
+        return TemplateParser(
+            workspace_index=ls.workspace_index,
+            document=server.workspace.get_document(params.text_document.uri),
+        ).hover(params.position.line, params.position.character)
+    except Exception as e:
+        logger.error(e)
+        return None
 
 
 @server.feature(WORKSPACE_DID_CHANGE_WATCHED_FILES)

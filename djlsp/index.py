@@ -12,15 +12,22 @@ class Template:
 @dataclass
 class Tag:
     name: str = ""
+    docs: str = ""
     inner_tags: list[str] = ""
     closing_tag: str = ""
+
+
+@dataclass
+class Filter:
+    name: str = ""
+    docs: str = ""
 
 
 @dataclass
 class Library:
     name: str = ""
     tags: dict[str, Tag] = field(default_factory=dict)
-    filters: list[str] = field(default_factory=list)
+    filters: dict[str, Filter] = field(default_factory=dict)
 
 
 @dataclass
@@ -43,10 +50,17 @@ class WorkspaceIndex:
         self.libraries = {
             lib_name: Library(
                 name=lib_name,
-                filters=lib_data.get("filters", []),
+                filters={
+                    name: Filter(
+                        name=name,
+                        docs=filter_options.get("docs", ""),
+                    )
+                    for name, filter_options in lib_data.get("filters", {}).items()
+                },
                 tags={
                     tag: Tag(
                         name=tag,
+                        docs=tag_options.get("docs"),
                         inner_tags=tag_options.get("inner_tags", []),
                         closing_tag=tag_options.get("closing_tag"),
                     )

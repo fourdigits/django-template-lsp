@@ -243,15 +243,16 @@ def get_libraries():
     libraries = {
         "__builtins__": {
             "tags": {},
-            "filters": [],
+            "filters": {},
         }
     }
 
     # Collect builtins
     for lib_mod_path in Engine.get_default().builtins:
         lib = importlib.import_module(lib_mod_path).register
-        libraries["__builtins__"]["tags"].update({tag: {} for tag in lib.tags.keys()})
-        libraries["__builtins__"]["filters"].extend(list(lib.filters.keys()))
+        parsed_lib = _parse_library(lib)
+        libraries["__builtins__"]["tags"].update(parsed_lib["tags"])
+        libraries["__builtins__"]["filters"].update(parsed_lib["filters"])
 
     # Get Django templatetags
     django_path = inspect.getabsfile(django.templatetags)
@@ -262,10 +263,7 @@ def get_libraries():
         try:
             lib = get_installed_libraries()[django_lib]
             lib = importlib.import_module(lib).register
-            libraries[django_lib] = {
-                "tags": {tag: {} for tag in lib.tags.keys()},
-                "filters": list(lib.filters.keys()),
-            }
+            libraries[django_lib] = _parse_library(lib)
         except (InvalidTemplateLibrary, KeyError):
             continue
 
@@ -287,10 +285,7 @@ def get_libraries():
             except (InvalidTemplateLibrary, KeyError):
                 continue
 
-            libraries[taglib] = {
-                "tags": {tag: {} for tag in lib.tags.keys()},
-                "filters": list(lib.filters.keys()),
-            }
+            libraries[taglib] = _parse_library(lib)
 
     # Add node tags
     for lib_name, tags in LIBRARIES_NODE_TAGS.items():
@@ -305,6 +300,23 @@ def get_libraries():
                     )
 
     return libraries
+
+
+def _parse_library(lib) -> dict:
+    return {
+        "tags": {
+            name: {
+                "docs": func.__doc__.strip() if func.__doc__ else "",
+            }
+            for name, func in lib.tags.items()
+        },
+        "filters": {
+            name: {
+                "docs": func.__doc__.strip() if func.__doc__ else "",
+            }
+            for name, func in lib.filters.items()
+        },
+    }
 
 
 def get_templates():
