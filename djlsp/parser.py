@@ -3,6 +3,7 @@ import re
 from functools import cached_property
 from re import Match
 
+from lsprotocol.types import CompletionItem
 from pygls.workspace import TextDocument
 
 from djlsp.constants import BUILTIN
@@ -12,15 +13,6 @@ logger = logging.getLogger(__name__)
 
 
 class TemplateParser:
-    re_loaded = re.compile(r".*{% ?load ([\w ]*) ?%}$")
-    re_load = re.compile(r".*{% ?load ([\w ]*)$")
-    re_block = re.compile(r".*{% ?block ([\w]*)$")
-    re_url = re.compile(r""".*{% ?url ('|")([\w\-:]*)$""")
-    re_static = re.compile(r".*{% ?static ('|\")([\w\-\.\/]*)$")
-    re_tag = re.compile(r"^.*{% ?(\w*)$")
-    re_filter = re.compile(r"^.*({%|{{) ?[\w \.\|]*\|(\w*)$")
-    re_template = re.compile(r""".*{% ?(extends|include) ('|")([\w\-:]*)$""")
-    re_context = re.compile(r".*({{|{% \w+).* ([\w\d_\.]*)$")
 
     def __init__(self, workspace_index: WorkspaceIndex, document: TextDocument):
         self.workspace_index: WorkspaceIndex = workspace_index
@@ -28,9 +20,10 @@ class TemplateParser:
 
     @cached_property
     def loaded_libraries(self):
+        re_loaded = re.compile(r".*{% ?load ([\w ]*) ?%}$")
         loaded = {BUILTIN}
         for line in self.document.lines:
-            if match := self.re_loaded.match(line):
+            if match := re_loaded.match(line):
                 loaded.update(
                     [
                         lib
@@ -43,38 +36,42 @@ class TemplateParser:
 
     def completions(self, line, character):
         line_fragment = self.document.lines[line][:character]
-        try:
-            if match := self.re_load.match(line_fragment):
-                return self.get_load_completions(match)
-            if match := self.re_block.match(line_fragment):
-                return self.get_block_completions(match)
-            if match := self.re_url.match(line_fragment):
-                return self.get_url_completions(match)
-            elif match := self.re_static.match(line_fragment):
-                return self.get_static_completions(match)
-            elif match := self.re_template.match(line_fragment):
-                return self.get_template_completions(match)
-            elif match := self.re_tag.match(line_fragment):
-                return self.get_tag_completions(match)
-            elif match := self.re_filter.match(line_fragment):
-                return self.get_filter_completions(match)
-            elif match := self.re_context.match(line_fragment):
-                return self.get_context_completions(match)
-        except Exception as e:
-            logger.debug(e)
+        matchers = [
+            (re.compile(r".*{% ?load ([\w ]*)$"), self.get_load_completions),
+            (re.compile(r".*{% ?block ([\w]*)$"), self.get_block_completions),
+            (re.compile(r""".*{% ?url ('|")([\w\-:]*)$"""), self.get_url_completions),
+            (
+                re.compile(r".*{% ?static ('|\")([\w\-\.\/]*)$"),
+                self.get_static_completions,
+            ),
+            (
+                re.compile(r""".*{% ?(extends|include) ('|")([\w\-:]*)$"""),
+                self.get_template_completions,
+            ),
+            (re.compile(r"^.*{% ?(\w*)$"), self.get_tag_completions),
+            (
+                re.compile(r"^.*({%|{{) ?[\w \.\|]*\|(\w*)$"),
+                self.get_filter_completions,
+            ),
+            (
+                re.compile(r".*({{|{% \w+).* ([\w\d_\.]*)$"),
+                self.get_context_completions,
+            ),
+        ]
 
+        for regex, completion in matchers:
+            if match := regex.match(line_fragment):
+                return completion(match)
         return []
 
     def get_load_completions(self, match: Match):
         prefix = match.group(1).split(" ")[-1]
         logger.debug(f"Find load matches for: {prefix}")
-        return sorted(
-            [
-                lib
-                for lib in self.workspace_index.libraries.keys()
-                if lib != BUILTIN and lib.startswith(prefix)
-            ]
-        )
+        return [
+            CompletionItem(label=lib)
+            for lib in self.workspace_index.libraries.keys()
+            if lib != BUILTIN and lib.startswith(prefix)
+        ]
 
     def get_block_completions(self, match: Match):
         prefix = match.group(1).strip()
@@ -91,13 +88,11 @@ class TemplateParser:
             if matches := re_block.findall(line):
                 used_block_names.extend(matches)
 
-        return sorted(
-            [
-                name
-                for name in block_names
-                if name not in used_block_names and name.startswith(prefix)
-            ]
-        )
+        return [
+            CompletionItem(label=name)
+            for name in block_names
+            if name not in used_block_names and name.startswith(prefix)
+        ]
 
     def _recursive_block_names(self, template_name, looked_up_templates=None):
         looked_up_templates = looked_up_templates if looked_up_templates else []
@@ -115,31 +110,29 @@ class TemplateParser:
     def get_static_completions(self, match: Match):
         prefix = match.group(2)
         logger.debug(f"Find static matches for: {prefix}")
-        return sorted(
-            [
-                static_file
-                for static_file in self.workspace_index.static_files
-                if static_file.startswith(prefix)
-            ]
-        )
+        return [
+            CompletionItem(label=static_file)
+            for static_file in self.workspace_index.static_files
+            if static_file.startswith(prefix)
+        ]
 
     def get_url_completions(self, match: Match):
         prefix = match.group(2)
         logger.debug(f"Find url matches for: {prefix}")
-        return sorted(
-            [url for url in self.workspace_index.urls if url.startswith(prefix)]
-        )
+        return [
+            CompletionItem(label=url)
+            for url in self.workspace_index.urls
+            if url.startswith(prefix)
+        ]
 
     def get_template_completions(self, match: Match):
         prefix = match.group(3)
         logger.debug(f"Find {match.group(1)} matches for: {prefix}")
-        return sorted(
-            [
-                template
-                for template in self.workspace_index.templates
-                if template.startswith(prefix)
-            ]
-        )
+        return [
+            CompletionItem(label=template)
+            for template in self.workspace_index.templates
+            if template.startswith(prefix)
+        ]
 
     def get_tag_completions(self, match: Match):
         prefix = match.group(1)
@@ -155,7 +148,7 @@ class TemplateParser:
                     if tag.closing_tag:
                         tags.append(tag.closing_tag)
 
-        return sorted([tag for tag in tags if tag.startswith(prefix)])
+        return [CompletionItem(label=tag) for tag in tags if tag.startswith(prefix)]
 
     def get_filter_completions(self, match: Match):
         prefix = match.group(2)
@@ -164,9 +157,11 @@ class TemplateParser:
         for lib_name in self.loaded_libraries:
             if lib := self.workspace_index.libraries.get(lib_name):
                 filters.extend(lib.filters)
-        return sorted(
-            [filter_name for filter_name in filters if filter_name.startswith(prefix)]
-        )
+        return [
+            CompletionItem(label=filter_name)
+            for filter_name in filters
+            if filter_name.startswith(prefix)
+        ]
 
     def get_context_completions(self, match: Match):
         prefix = match.group(2)
@@ -181,7 +176,11 @@ class TemplateParser:
             prefix.strip().split("."), context
         )
 
-        return [var for var in lookup_context if var.startswith(prefix)]
+        return [
+            CompletionItem(label=var)
+            for var in lookup_context
+            if var.startswith(prefix)
+        ]
 
     def _recursive_context_lookup(self, parts: [str], context: dict[str, str]):
         if len(parts) == 1:

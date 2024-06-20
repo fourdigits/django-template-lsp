@@ -10,7 +10,6 @@ from lsprotocol.types import (
     INITIALIZE,
     TEXT_DOCUMENT_COMPLETION,
     WORKSPACE_DID_CHANGE_WATCHED_FILES,
-    CompletionItem,
     CompletionList,
     CompletionOptions,
     CompletionParams,
@@ -279,14 +278,17 @@ def initialized(ls: DjangoTemplateLanguageServer, params: InitializeParams):
 def completions(ls: DjangoTemplateLanguageServer, params: CompletionParams):
     logger.info(f"COMMAND: {TEXT_DOCUMENT_COMPLETION}")
     logger.debug(f"PARAMS: {params}")
-    items = []
-    document = server.workspace.get_document(params.text_document.uri)
-    template = TemplateParser(ls.workspace_index, document)
-    for completion in template.completions(
-        params.position.line, params.position.character
-    ):
-        items.append(CompletionItem(label=completion))
-    return CompletionList(is_incomplete=False, items=items)
+    try:
+        return CompletionList(
+            is_incomplete=False,
+            items=TemplateParser(
+                workspace_index=ls.workspace_index,
+                document=server.workspace.get_document(params.text_document.uri),
+            ).completions(params.position.line, params.position.character),
+        )
+    except Exception as e:
+        logger.error(e)
+        return CompletionList(items=[])
 
 
 @server.feature(WORKSPACE_DID_CHANGE_WATCHED_FILES)
