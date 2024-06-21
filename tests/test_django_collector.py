@@ -3,6 +3,7 @@ import os
 import shutil
 import subprocess
 
+from djlsp.index import WorkspaceIndex
 from djlsp.server import DJANGO_COLLECTOR_SCRIPT_PATH
 
 DJANGO_TEST_PROJECT_SRC = os.path.join(
@@ -24,13 +25,22 @@ def test_django_collect():
         )
     )
 
-    assert "django_app" in django_data["libraries"]
-    assert "django_app_tag" in django_data["libraries"]["django_app"]["tags"]
-    assert "django_app_filter" in django_data["libraries"]["django_app"]["filters"]
-    assert "django_app.html" in django_data["templates"]
-    assert "django_app.js" in django_data["static_files"]
-    assert "django_app:index" in django_data["urls"]
-    assert set(django_data["file_watcher_globs"]) == {
+    index = WorkspaceIndex()
+    index.update(django_data)
+
+    assert "django_app_tag" in index.libraries["django_app"].tags
+    assert index.libraries["django_app"].tags["django_app_tag"].docs == "Docs for tag"
+
+    assert "django_app_filter" in index.libraries["django_app"].filters
+    assert (
+        index.libraries["django_app"].filters["django_app_filter"].docs
+        == "Docs for filter"
+    )
+
+    assert "django_app.html" in index.templates
+    assert "django_app.js" in index.static_files
+    assert "django_app:index" in index.urls
+    assert set(index.file_watcher_globs) == {
         "**/templates/**",
         "**/templatetags/**",
         "**/static/**",
