@@ -38,6 +38,11 @@ def test_django_collect():
     )
 
     assert "django_app.html" in index.templates
+    assert (
+        index.templates["django_app.html"].path
+        == "src:django_app/templates/django_app.html"
+    )
+
     assert "django_app.js" in index.static_files
     assert "django_app:index" in index.urls
     assert set(index.file_watcher_globs) == {

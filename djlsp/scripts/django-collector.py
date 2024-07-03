@@ -5,6 +5,7 @@ import json
 import os
 import re
 import sys
+from dataclasses import dataclass
 from unittest.mock import patch
 
 import django
@@ -319,7 +320,14 @@ def _parse_library(lib) -> dict:
     }
 
 
-def get_templates():
+@dataclass
+class Template:
+    path: str = ""
+    name: str = ""
+    content: str = ""
+
+
+def get_templates(project_src_path):
     template_files = {}
     default_engine = Engine.get_default()
     for templates_dir in [
@@ -337,19 +345,24 @@ def get_templates():
 
                 # Get used template (other apps can override templates)
                 template_files[template_name] = _parse_template(
-                    _get_template_content(default_engine, template_name), template_name
+                    project_src_path,
+                    _get_template(default_engine, template_name),
                 )
     return template_files
 
 
-def _get_template_content(engine: Engine, template_name: str):
+def _get_template(engine: Engine, template_name: str) -> Template:
     for loader in engine.template_loaders:
         for origin in loader.get_template_sources(template_name):
             try:
-                return loader.get_contents(origin)
+                return Template(
+                    path=str(origin),
+                    name=template_name,
+                    content=loader.get_contents(origin),
+                )
             except Exception:
                 pass
-    return ""
+    return Template(name=template_name)
 
 
 re_extends = re.compile(r""".*{% ?extends ['"](.*)['"] ?%}.*""")
@@ -373,31 +386,38 @@ def get_global_template_context():
     return global_context
 
 
-def _parse_template(content, template_name: str) -> dict:
+def _parse_template(project_src_path, template: Template) -> dict:
     extends = None
     blocks = set()
-    for line in content.splitlines():
+    for line in template.content.splitlines():
         if match := re_extends.match(line):
             extends = match.group(1)
         if match := re_block.match(line):
             blocks.add(match.group(1))
 
+    path = ""
+    if template.path.startswith(project_src_path):
+        path = f"src:{template.path.removeprefix(project_src_path).lstrip('/')}"
+    elif template.path.startswith(sys.prefix):
+        path = f"env:{template.path.removeprefix(sys.prefix).lstrip('/')}"
+
     return {
+        "path": path,
         "extends": extends,
         "blocks": list(blocks),
         "context": get_wagtail_page_context(
-            template_name
+            template.name
         ),  # TODO: Find view/model/contectprocessors
     }
 
 
-def collect_project_data():
+def collect_project_data(project_src_path):
     return {
         "file_watcher_globs": get_file_watcher_globs(),
         "static_files": get_static_files(),
         "urls": get_urls(),
         "libraries": get_libraries(),
-        "templates": get_templates(),
+        "templates": get_templates(project_src_path),
         "global_template_context": get_global_template_context(),
         "object_types": get_object_types(),
     }
@@ -430,10 +450,8 @@ if __name__ == "__main__":
     parser.add_argument("--project-src", action="store", type=str)
     args = parser.parse_args()
 
-    if args.project_src:
-        sys.path.insert(0, args.project_src)
-    else:
-        sys.path.insert(0, os.getcwd())
+    project_src_path = args.project_src if args.project_src else os.getcwd()
+    sys.path.insert(0, project_src_path)
 
     django_settings_module = (
         args.django_settings_module
@@ -448,4 +466,4 @@ if __name__ == "__main__":
 
     django.setup()
 
-    print(json.dumps(collect_project_data(), indent=4))
+    print(json.dumps(collect_project_data(project_src_path), indent=4))
