@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 @dataclass
 class Template:
     name: str = ""
+    path: str = ""
     extends: str | None = None
     blocks: list[str] | None = None
     context: dict = field(default_factory=dict)
@@ -32,6 +33,8 @@ class Library:
 
 @dataclass
 class WorkspaceIndex:
+    src_path: str = ""
+    env_path: str = ""
     file_watcher_globs: [str] = field(default_factory=list)
     static_files: [str] = field(default_factory=list)
     urls: [str] = field(default_factory=list)

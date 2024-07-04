@@ -9,11 +9,13 @@ from functools import cached_property
 from lsprotocol.types import (
     INITIALIZE,
     TEXT_DOCUMENT_COMPLETION,
+    TEXT_DOCUMENT_DEFINITION,
     TEXT_DOCUMENT_HOVER,
     WORKSPACE_DID_CHANGE_WATCHED_FILES,
     CompletionList,
     CompletionOptions,
     CompletionParams,
+    DefinitionParams,
     DidChangeWatchedFilesParams,
     DidChangeWatchedFilesRegistrationOptions,
     FileSystemWatcher,
@@ -66,6 +68,14 @@ class DjangoTemplateLanguageServer(LanguageServer):
                 return src_path
         return self.workspace.root_path
 
+    @cached_property
+    def project_env_path(self):
+        for env_dir in self.ENV_DIRECTORIES:
+            if os.path.exists(
+                os.path.join(self.workspace.root_path, env_dir, "bin", "python")
+            ):
+                return os.path.join(self.workspace.root_path, env_dir)
+
     @property
     def docker_compose_path(self):
         return os.path.join(self.workspace.root_path, self.docker_compose_file)
@@ -103,6 +113,9 @@ class DjangoTemplateLanguageServer(LanguageServer):
         )
 
     def get_django_data(self):
+        self.workspace_index.src_path = self.project_src_path
+        self.workspace_index.env_path = self.project_env_path
+
         if self._has_valid_docker_service():
             django_data = self._get_django_data_from_docker()
         elif python_path := self._get_python_path():
@@ -131,12 +144,8 @@ class DjangoTemplateLanguageServer(LanguageServer):
             self.set_file_watcher_capability()
 
     def _get_python_path(self):
-        for env_dir in self.ENV_DIRECTORIES:
-            env_python_path = os.path.join(
-                self.workspace.root_path, env_dir, "bin", "python"
-            )
-            if os.path.exists(env_python_path):
-                return env_python_path
+        if self.project_env_path:
+            return os.path.join(self.project_env_path, "bin", "python")
         return shutil.which("python3")
 
     def _get_django_data_from_python_path(self, python_path):
@@ -303,6 +312,20 @@ def hover(ls: DjangoTemplateLanguageServer, params: HoverParams):
             workspace_index=ls.workspace_index,
             document=server.workspace.get_document(params.text_document.uri),
         ).hover(params.position.line, params.position.character)
+    except Exception as e:
+        logger.error(e)
+        return None
+
+
+@server.feature(TEXT_DOCUMENT_DEFINITION)
+def goto_definition(ls: DjangoTemplateLanguageServer, params: DefinitionParams):
+    logger.info(f"COMMAND: {TEXT_DOCUMENT_DEFINITION}")
+    logger.debug(f"PARAMS: {params}")
+    try:
+        return TemplateParser(
+            workspace_index=ls.workspace_index,
+            document=ls.workspace.get_document(params.text_document.uri),
+        ).goto_definition(params.position.line, params.position.character)
     except Exception as e:
         logger.error(e)
         return None

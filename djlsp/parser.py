@@ -3,7 +3,7 @@ import re
 from functools import cached_property
 from re import Match
 
-from lsprotocol.types import CompletionItem, Hover
+from lsprotocol.types import CompletionItem, Hover, Location, Position, Range
 from pygls.workspace import TextDocument
 
 from djlsp.constants import BUILTIN
@@ -247,6 +247,48 @@ class TemplateParser:
         return None
 
     def _get_full_hover_name(self, line, character, first_part):
+        if match_after := re.match(
+            r"^([\w\d]+).*", self.document.lines[line][character:]
+        ):
+            return first_part + match_after.group(1)
+        return first_part
+
+    ###################################################################################
+    # Goto definition
+    ###################################################################################
+    def goto_definition(self, line, character):
+        line_fragment = self.document.lines[line][:character]
+        matchers = [
+            (
+                re.compile(r""".*{% ?(extends|include) ('|")([\w\-\./]*)$"""),
+                self.get_template_definition,
+            ),
+        ]
+        for regex, definition in matchers:
+            if match := regex.match(line_fragment):
+                return definition(line, character, match)
+        return None
+
+    def get_template_definition(self, line, character, match: Match):
+        if match_after := re.match(r'^(.*)".*', self.document.lines[line][character:]):
+            template_name = match.group(3) + match_after.group(1)
+            logger.debug(f"Find template goto definition for: {template_name}")
+            if template := self.workspace_index.templates.get(template_name):
+                location, path = template.path.split(":")
+                root_path = (
+                    self.workspace_index.src_path
+                    if location == "src"
+                    else self.workspace_index.env_path
+                )
+                return Location(
+                    uri=f"file://{root_path}/{path}",
+                    range=Range(
+                        start=Position(line=0, character=0),
+                        end=Position(line=0, character=0),
+                    ),
+                )
+
+    def _get_full_definition_name(self, line, character, first_part):
         if match_after := re.match(
             r"^([\w\d]+).*", self.document.lines[line][character:]
         ):
