@@ -209,6 +209,18 @@ class TemplateParser:
             if variable_stripped := variable.strip():
                 context[variable_stripped] = None
 
+        # Update type definations based on template type comments
+        # only simple version of variable: full python path:
+        # {# type some_variable: full.python.path.to.class #}
+        re_type = re.compile(r".*{# type (\w+) ?: ?([\w\d_\.]+) ?#}.*")
+        for line in self.document.lines:
+            if match := re_type.match(line):
+                variable = match.group(1)
+                variable_type = match.group(2)
+                # TODO: What about non Django model objects
+                if variable_type in self.workspace_index.object_types:
+                    context[variable] = variable_type
+
         prefix, lookup_context = self._recursive_context_lookup(
             prefix.strip().split("."), context
         )

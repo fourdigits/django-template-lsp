@@ -24,6 +24,18 @@ A simple Django template LSP for completions that has support for:
 - `docker_compose_service` (string) default: "django"
 - `django_settings_module` (string) default: ""
 
+## Type hints
+
+Due to the highly dynamic nature of Python and Django, it can be challenging to
+identify the available context data within templates.  To address this, basic
+type hint support is provided directly in the template files:
+
+```html
+{# type blog: blogs.models.Blog #}
+```
+
+*Note: Currently, this feature only supports Django models.*
+
 ## Editors
 
 ### Helix
