@@ -188,6 +188,27 @@ class TemplateParser:
             if template := self.workspace_index.templates.get(template_name):
                 context.update(template.context)
 
+        # Add all variables found in template to context
+        # TODO: Use scope to only add to context based on cursor position
+        re_as = re.compile(r".*{%.*as ([\w ]+) %}.*$")
+        re_for = re.compile(r".*{% ?for ([\w ,]*) in.*$")
+        re_with = re.compile(r".*{% ?with (.+) ?%}.*")
+        found_variables = []
+        for line in self.document.lines:
+            if match := re_as.match(line):
+                found_variables.extend(match.group(1).split(" "))
+            if match := re_for.match(line):
+                found_variables.extend(match.group(1).split(","))
+            if match := re_with.match(line):
+                for assignment in match.group(1).split(" "):
+                    split_assignment = assignment.split("=")
+                    if len(split_assignment) == 2:
+                        found_variables.append(split_assignment[0])
+
+        for variable in found_variables:
+            if variable_stripped := variable.strip():
+                context[variable_stripped] = None
+
         prefix, lookup_context = self._recursive_context_lookup(
             prefix.strip().split("."), context
         )
