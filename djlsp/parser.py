@@ -57,6 +57,10 @@ class TemplateParser:
                 self.get_filter_completions,
             ),
             (
+                re.compile(r"^.*{# type \w+ ?: ?([\w\d_\.]*)$"),
+                self.get_type_comment_complations,
+            ),
+            (
                 re.compile(r".*({{|{% \w+).* ([\w\d_\.]*)$"),
                 self.get_context_completions,
             ),
@@ -177,6 +181,15 @@ class TemplateParser:
             filter_name
             for filter_name in filters
             if filter_name.label.startswith(prefix)
+        ]
+
+    def get_type_comment_complations(self, match: Match):
+        prefix = match.group(1)
+        logger.debug(f"Find type comment matches for: {prefix}")
+        return [
+            CompletionItem(object_path)
+            for object_path in self.workspace_index.object_types.keys()
+            if object_path.startswith(prefix)
         ]
 
     def get_context_completions(self, match: Match):
