@@ -61,7 +61,7 @@ class TemplateParser:
                 self.get_type_comment_complations,
             ),
             (
-                re.compile(r".*({{|{% \w+).* ([\w\d_\.]*)$"),
+                re.compile(r".*({{|{% \w+ ).*?([\w\d_\.]*)$"),
                 self.get_context_completions,
             ),
         ]
