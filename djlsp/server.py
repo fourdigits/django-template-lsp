@@ -6,6 +6,7 @@ import subprocess
 import uuid
 from functools import cached_property
 
+import jedi
 from lsprotocol.types import (
     INITIALIZE,
     TEXT_DOCUMENT_COMPLETION,
@@ -58,6 +59,7 @@ class DjangoTemplateLanguageServer(LanguageServer):
         self.django_settings_module = ""
         self.workspace_index = WorkspaceIndex()
         self.workspace_index.update(FALLBACK_DJANGO_DATA)
+        self.jedi_project = jedi.Project(".")
 
     @cached_property
     def project_src_path(self):
@@ -115,6 +117,9 @@ class DjangoTemplateLanguageServer(LanguageServer):
     def get_django_data(self):
         self.workspace_index.src_path = self.project_src_path
         self.workspace_index.env_path = self.project_env_path
+        self.jedi_project = jedi.Project(
+            path=self.project_src_path, environment_path=self.project_env_path
+        )
 
         if self._has_valid_docker_service():
             django_data = self._get_django_data_from_docker()
@@ -295,6 +300,7 @@ def completions(ls: DjangoTemplateLanguageServer, params: CompletionParams):
             is_incomplete=False,
             items=TemplateParser(
                 workspace_index=ls.workspace_index,
+                jedi_project=ls.jedi_project,
                 document=server.workspace.get_document(params.text_document.uri),
             ).completions(params.position.line, params.position.character),
         )
@@ -310,6 +316,7 @@ def hover(ls: DjangoTemplateLanguageServer, params: HoverParams):
     try:
         return TemplateParser(
             workspace_index=ls.workspace_index,
+            jedi_project=ls.jedi_project,
             document=server.workspace.get_document(params.text_document.uri),
         ).hover(params.position.line, params.position.character)
     except Exception as e:
@@ -324,6 +331,7 @@ def goto_definition(ls: DjangoTemplateLanguageServer, params: DefinitionParams):
     try:
         return TemplateParser(
             workspace_index=ls.workspace_index,
+            jedi_project=ls.jedi_project,
             document=ls.workspace.get_document(params.text_document.uri),
         ).goto_definition(params.position.line, params.position.character)
     except Exception as e:

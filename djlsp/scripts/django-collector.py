@@ -189,15 +189,6 @@ def get_wagtail_page_context(template_name: str) -> dict:
     return WAGTAIL_PAGE_TEMPLATE_LOOKUP.get(template_name, {})
 
 
-def get_object_types() -> dict:
-    models = apps.get_models()
-    object_types = {}
-    for model in models:
-        model_path = model.__module__ + "." + model.__name__
-        object_types[model_path] = {field.name: None for field in model._meta.fields}
-    return object_types
-
-
 def get_static_files():
     # TODO: Add option to ignore some static folders
     # (like static that is generated with a JS bundler)
@@ -419,7 +410,6 @@ def collect_project_data(project_src_path):
         "libraries": get_libraries(),
         "templates": get_templates(project_src_path),
         "global_template_context": get_global_template_context(),
-        "object_types": get_object_types(),
     }
 
 

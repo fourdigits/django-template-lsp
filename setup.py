@@ -26,6 +26,7 @@ setup(
     python_requires=">= 3.9",
     install_requires=[
         "pygls",
+        "jedi",
     ],
     extras_require={
         "dev": [
