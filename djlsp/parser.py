@@ -53,7 +53,7 @@ class TemplateParser:
             ),
             (re.compile(r"^.*{% ?(\w*)$"), self.get_tag_completions),
             (
-                re.compile(r"^.*({%|{{) ?[\w \.\|]*\|(\w*)$"),
+                re.compile(r"^.*({%|{{).*?\|(\w*)$"),
                 self.get_filter_completions,
             ),
             (
