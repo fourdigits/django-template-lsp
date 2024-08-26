@@ -116,9 +116,14 @@ class DjangoTemplateLanguageServer(LanguageServer):
         self.workspace_index.src_path = self.project_src_path
         self.workspace_index.env_path = self.project_env_path
 
-        if self._has_valid_docker_service():
+        if self.project_env_path:
+            django_data = self._get_django_data_from_python_path(
+                os.path.join(self.project_env_path, "bin", "python")
+            )
+        elif self._has_valid_docker_service():
             django_data = self._get_django_data_from_docker()
-        elif python_path := self._get_python_path():
+        elif python_path := shutil.which("python3"):
+            # Try getting data with global python installtion
             django_data = self._get_django_data_from_python_path(python_path)
         else:
             django_data = None
@@ -142,11 +147,6 @@ class DjangoTemplateLanguageServer(LanguageServer):
         ):
             self.current_file_watcher_globs = self.workspace_index.file_watcher_globs
             self.set_file_watcher_capability()
-
-    def _get_python_path(self):
-        if self.project_env_path:
-            return os.path.join(self.project_env_path, "bin", "python")
-        return shutil.which("python3")
 
     def _get_django_data_from_python_path(self, python_path):
         logger.info(f"Collection django data from local python path: {python_path}")
