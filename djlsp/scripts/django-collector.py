@@ -370,7 +370,12 @@ re_block = re.compile(r".*{% ?block (\w*) ?%}.*")
 
 
 def get_global_template_context():
-    global_context = {}
+    global_context = {
+        # builtins
+        "True": None,
+        "False": None,
+        "None": None,
+    }
 
     # Update object types
     TEMPLATE_CONTEXT_PROCESSORS["django.contrib.auth.context_processors.auth"][
