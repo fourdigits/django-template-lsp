@@ -2,6 +2,7 @@ import argparse
 import importlib
 import inspect
 import json
+import logging
 import os
 import re
 import sys
@@ -18,6 +19,8 @@ from django.template.engine import Engine
 from django.template.library import InvalidTemplateLibrary
 from django.template.utils import get_app_template_dirs
 from django.urls import URLPattern, URLResolver
+
+logger = logging.getLogger(__name__)
 
 # Some tags are added with a Node, like end*, elif else.
 # TODO: Find a way of collecting these, for now hardcoded list
@@ -131,186 +134,10 @@ TEMPLATE_CONTEXT_PROCESSORS = {
     },
 }
 
-WAGTAIL_PAGE_TEMPLATE_LOOKUP = None
 
-
-def get_file_watcher_globs():
-    """
-    File watcher glob patterns used to trigger this collector script
-
-    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#pattern
-    """
-    patterns = [
-        "**/templates/**",
-        "**/templatetags/**",
-        "**/static/**",
-    ]
-
-    for static_path in settings.STATICFILES_DIRS:
-        static_folder = os.path.basename(static_path)
-        if static_folder != "static":
-            patterns.append(f"**/{static_folder}/**")
-
-    for template_path in [
-        *Engine.get_default().dirs,
-        *get_app_template_dirs("templates"),
-    ]:
-        template_folder = os.path.basename(template_path)
-        if template_folder != "templates":
-            patterns.append(f"**/{template_folder}/**")
-
-    return patterns
-
-
-def _build_wagtail_page_template_lookup():
-    try:
-        from wagtail.models import Page
-    except ImportError:
-        return {}
-    wagtail_page_template_lookup = {}
-    models = apps.get_models()
-    for model in models:
-        if issubclass(model, Page):
-            wagtail_page_template_lookup[model.template] = {
-                "page": model.__module__ + "." + model.__name__,
-                "self": model.__module__ + "." + model.__name__,
-            }
-            if model.context_object_name:
-                wagtail_page_template_lookup[model.template][
-                    model.context_object_name
-                ] = (model.__module__ + "." + model.__name__)
-    return wagtail_page_template_lookup
-
-
-def get_wagtail_page_context(template_name: str) -> dict:
-    global WAGTAIL_PAGE_TEMPLATE_LOOKUP
-    if WAGTAIL_PAGE_TEMPLATE_LOOKUP is None:
-        WAGTAIL_PAGE_TEMPLATE_LOOKUP = _build_wagtail_page_template_lookup()
-    return WAGTAIL_PAGE_TEMPLATE_LOOKUP.get(template_name, {})
-
-
-def get_static_files():
-    # TODO: Add option to ignore some static folders
-    # (like static that is generated with a JS bundler)
-    static_paths = []
-    for finder in get_finders():
-        for path, _ in finder.list(None):
-            static_paths.append(path)
-    return static_paths
-
-
-def get_urls():
-    try:
-        urlpatterns = __import__(settings.ROOT_URLCONF, {}, {}, [""]).urlpatterns
-    except Exception:
-        return []
-
-    def recursive_get_views(urlpatterns, namespace=None):
-        views = []
-        for p in urlpatterns:
-            if isinstance(p, URLPattern):
-                if not p.name:
-                    name = p.name
-                elif namespace:
-                    name = "{0}:{1}".format(namespace, p.name)
-                else:
-                    name = p.name
-                views.append(name)
-            elif isinstance(p, URLResolver):
-                try:
-                    patterns = p.url_patterns
-                except ImportError:
-                    continue
-                if namespace and p.namespace:
-                    _namespace = "{0}:{1}".format(namespace, p.namespace)
-                else:
-                    _namespace = p.namespace or namespace
-                views.extend(recursive_get_views(patterns, namespace=_namespace))
-        return list(filter(None, views))
-
-    return recursive_get_views(urlpatterns)
-
-
-def get_libraries():
-    libraries = {
-        "__builtins__": {
-            "tags": {},
-            "filters": {},
-        }
-    }
-
-    # Collect builtins
-    for lib_mod_path in Engine.get_default().builtins:
-        lib = importlib.import_module(lib_mod_path).register
-        parsed_lib = _parse_library(lib)
-        libraries["__builtins__"]["tags"].update(parsed_lib["tags"])
-        libraries["__builtins__"]["filters"].update(parsed_lib["filters"])
-
-    # Get Django templatetags
-    django_path = inspect.getabsfile(django.templatetags)
-    django_mod_files = os.listdir(os.path.dirname(django_path))
-    for django_lib in [
-        i[:-3] for i in django_mod_files if i.endswith(".py") and i[0] != "_"
-    ]:
-        try:
-            lib = get_installed_libraries()[django_lib]
-            lib = importlib.import_module(lib).register
-            libraries[django_lib] = _parse_library(lib)
-        except (InvalidTemplateLibrary, KeyError):
-            continue
-
-    for app_config in apps.get_app_configs():
-        app = app_config.name
-        try:
-            templatetag_mod = __import__(app + ".templatetags", {}, {}, [""])
-        except ImportError:
-            continue
-
-        mod_path = inspect.getabsfile(templatetag_mod)
-        mod_files = os.listdir(os.path.dirname(mod_path))
-        tag_files = [i[:-3] for i in mod_files if i.endswith(".py") and i[0] != "_"]
-
-        for taglib in tag_files:
-            try:
-                lib = get_installed_libraries()[taglib]
-                lib = importlib.import_module(lib).register
-            except (InvalidTemplateLibrary, KeyError):
-                continue
-
-            libraries[taglib] = _parse_library(lib)
-
-    # Add node tags
-    for lib_name, tags in LIBRARIES_NODE_TAGS.items():
-        if lib_name in libraries:
-            for tag, options in tags.items():
-                if tag in libraries[lib_name]["tags"]:
-                    libraries[lib_name]["tags"][tag]["inner_tags"] = options.get(
-                        "inner_tags", []
-                    )
-                    libraries[lib_name]["tags"][tag]["closing_tag"] = options.get(
-                        "closing_tag"
-                    )
-
-    return libraries
-
-
-def _parse_library(lib) -> dict:
-    return {
-        "tags": {
-            name: {
-                "docs": func.__doc__.strip() if func.__doc__ else "",
-            }
-            for name, func in lib.tags.items()
-        },
-        "filters": {
-            name: {
-                "docs": func.__doc__.strip() if func.__doc__ else "",
-            }
-            for name, func in lib.filters.items()
-        },
-    }
-
-
+#######################################################################################
+# Index Types
+#######################################################################################
 @dataclass
 class Template:
     path: str = ""
@@ -318,106 +145,318 @@ class Template:
     content: str = ""
 
 
-def get_templates(project_src_path):
-    template_files = {}
-    default_engine = Engine.get_default()
-    for templates_dir in [
-        *default_engine.dirs,
-        *get_app_template_dirs("templates"),
-    ]:
-        for root, dirs, files in os.walk(templates_dir):
-            for file in files:
-                template_name = os.path.relpath(os.path.join(root, file), templates_dir)
+#######################################################################################
+# Index collector
+#######################################################################################
+class DjangoIndexCollector:
+    re_extends = re.compile(r""".*{% ?extends ['"](.*)['"] ?%}.*""")
+    re_block = re.compile(r".*{% ?block (\w*) ?%}.*")
 
-                if template_name in template_files:
-                    # Skip already procecesed template
-                    # (template have duplicates because other apps can override)
+    def __init__(self, project_src_path):
+        self.project_src_path = project_src_path
+
+        # Index data
+        self.file_watcher_globs = []
+        self.static_files = []
+        self.urls = []
+        self.libraries = {}
+        self.templates: dict[str, Template] = {}
+        self.global_template_context = {}
+
+    def collect(self):
+        self.file_watcher_globs = self.get_file_watcher_globs()
+        self.static_files = self.get_static_files()
+        self.templates = self.get_templates()
+        self.urls = self.get_urls()
+        self.libraries = self.get_libraries()
+        self.global_template_context = self.get_global_template_context()
+
+        # Third party collectors
+        self.collect_for_wagtail()
+
+    def to_json(self):
+        return json.dumps(
+            {
+                "file_watcher_globs": self.file_watcher_globs,
+                "static_files": self.static_files,
+                "urls": self.urls,
+                "libraries": self.libraries,
+                "templates": self.templates,
+                "global_template_context": self.global_template_context,
+            },
+            indent=4,
+        )
+
+    # File watcher globs
+    # ---------------------------------------------------------------------------------
+    def get_file_watcher_globs(self):
+        """
+        File watcher glob patterns used to trigger this collector script
+
+        https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#pattern
+        """
+        patterns = [
+            "**/templates/**",
+            "**/templatetags/**",
+            "**/static/**",
+        ]
+
+        for static_path in settings.STATICFILES_DIRS:
+            static_folder = os.path.basename(static_path)
+            if static_folder != "static":
+                patterns.append(f"**/{static_folder}/**")
+
+        for template_path in [
+            *Engine.get_default().dirs,
+            *get_app_template_dirs("templates"),
+        ]:
+            template_folder = os.path.basename(template_path)
+            if template_folder != "templates":
+                patterns.append(f"**/{template_folder}/**")
+
+        return patterns
+
+    # Static files
+    # ---------------------------------------------------------------------------------
+    def get_static_files(self):
+        # TODO: Add option to ignore some static folders
+        # (like static that is generated with a JS bundler)
+        static_paths = []
+        for finder in get_finders():
+            for path, _ in finder.list(None):
+                static_paths.append(path)
+        return static_paths
+
+    # Urls
+    # ---------------------------------------------------------------------------------
+    def get_urls(self):
+        try:
+            urlpatterns = __import__(settings.ROOT_URLCONF, {}, {}, [""]).urlpatterns
+        except Exception:
+            return []
+
+        def recursive_get_views(urlpatterns, namespace=None):
+            views = []
+            for p in urlpatterns:
+                if isinstance(p, URLPattern):
+                    # TODO: Get view path/line and template context
+                    if not p.name:
+                        name = p.name
+                    elif namespace:
+                        name = "{0}:{1}".format(namespace, p.name)
+                    else:
+                        name = p.name
+                    views.append(name)
+                elif isinstance(p, URLResolver):
+                    try:
+                        patterns = p.url_patterns
+                    except ImportError:
+                        continue
+                    if namespace and p.namespace:
+                        _namespace = "{0}:{1}".format(namespace, p.namespace)
+                    else:
+                        _namespace = p.namespace or namespace
+                    views.extend(recursive_get_views(patterns, namespace=_namespace))
+            return list(filter(None, views))
+
+        return recursive_get_views(urlpatterns)
+
+    # Libaries
+    # ---------------------------------------------------------------------------------
+    def get_libraries(self):
+        libraries = {
+            "__builtins__": {
+                "tags": {},
+                "filters": {},
+            }
+        }
+
+        # Collect builtins
+        for lib_mod_path in Engine.get_default().builtins:
+            lib = importlib.import_module(lib_mod_path).register
+            parsed_lib = self._parse_library(lib)
+            libraries["__builtins__"]["tags"].update(parsed_lib["tags"])
+            libraries["__builtins__"]["filters"].update(parsed_lib["filters"])
+
+        # Get Django templatetags
+        django_path = inspect.getabsfile(django.templatetags)
+        django_mod_files = os.listdir(os.path.dirname(django_path))
+        for django_lib in [
+            i[:-3] for i in django_mod_files if i.endswith(".py") and i[0] != "_"
+        ]:
+            try:
+                lib = get_installed_libraries()[django_lib]
+                lib = importlib.import_module(lib).register
+                libraries[django_lib] = self._parse_library(lib)
+            except (InvalidTemplateLibrary, KeyError) as e:
+                logger.error(f"Failed to parse django templatetag {django_lib}: {e}")
+                continue
+
+        for app_config in apps.get_app_configs():
+            app = app_config.name
+            try:
+                templatetag_mod = __import__(app + ".templatetags", {}, {}, [""])
+            except ImportError:
+                continue
+
+            try:
+                mod_path = inspect.getabsfile(templatetag_mod)
+            except TypeError as e:
+                logger.error(f"Failed getting path for ({app}) templatetags: {e}")
+                continue
+            mod_files = os.listdir(os.path.dirname(mod_path))
+            tag_files = [i[:-3] for i in mod_files if i.endswith(".py") and i[0] != "_"]
+
+            for taglib in tag_files:
+                try:
+                    lib = get_installed_libraries()[taglib]
+                    lib = importlib.import_module(lib).register
+                except (InvalidTemplateLibrary, KeyError) as e:
+                    logger.error(f"Failed to parse library ({taglib}): {e}")
                     continue
 
-                # Get used template (other apps can override templates)
-                template_files[template_name] = _parse_template(
-                    project_src_path,
-                    _get_template(default_engine, template_name),
+                libraries[taglib] = self._parse_library(lib)
+
+        # Add node tags
+        for lib_name, tags in LIBRARIES_NODE_TAGS.items():
+            if lib_name in libraries:
+                for tag, options in tags.items():
+                    if tag in libraries[lib_name]["tags"]:
+                        libraries[lib_name]["tags"][tag]["inner_tags"] = options.get(
+                            "inner_tags", []
+                        )
+                        libraries[lib_name]["tags"][tag]["closing_tag"] = options.get(
+                            "closing_tag"
+                        )
+
+        return libraries
+
+    def _parse_library(self, lib) -> dict:
+        return {
+            "tags": {
+                name: {
+                    "docs": func.__doc__.strip() if func.__doc__ else "",
+                }
+                for name, func in lib.tags.items()
+            },
+            "filters": {
+                name: {
+                    "docs": func.__doc__.strip() if func.__doc__ else "",
+                }
+                for name, func in lib.filters.items()
+            },
+        }
+
+    # Libaries
+    # ---------------------------------------------------------------------------------
+    def get_templates(self):
+        template_files = {}
+        default_engine = Engine.get_default()
+        for templates_dir in [
+            *default_engine.dirs,
+            *get_app_template_dirs("templates"),
+        ]:
+            for root, dirs, files in os.walk(templates_dir):
+                for file in files:
+                    template_name = os.path.relpath(
+                        os.path.join(root, file), templates_dir
+                    )
+
+                    if template_name in template_files:
+                        # Skip already procecesed template
+                        # (template have duplicates because other apps can override)
+                        continue
+
+                    # Get used template (other apps can override templates)
+                    template_files[template_name] = self._parse_template(
+                        self._get_template(default_engine, template_name),
+                    )
+        return template_files
+
+    def _parse_template(self, template: Template) -> dict:
+        extends = None
+        blocks = set()
+        for line in template.content.splitlines():
+            if match := self.re_extends.match(line):
+                extends = match.group(1)
+            if match := self.re_block.match(line):
+                blocks.add(match.group(1))
+
+        path = ""
+        if template.path.startswith(self.project_src_path):
+            path = (
+                f"src:{template.path.removeprefix(self.project_src_path).lstrip('/')}"
+            )
+        elif template.path.startswith(sys.prefix):
+            path = f"env:{template.path.removeprefix(sys.prefix).lstrip('/')}"
+
+        return {
+            "path": path,
+            "extends": extends,
+            "blocks": list(blocks),
+            "context": {},
+        }
+
+    def _get_template(self, engine: Engine, template_name: str) -> Template:
+        for loader in engine.template_loaders:
+            for origin in loader.get_template_sources(template_name):
+                try:
+                    return Template(
+                        path=str(origin),
+                        name=template_name,
+                        content=loader.get_contents(origin),
+                    )
+                except Exception:
+                    pass
+        return Template(name=template_name)
+
+    # Global context
+    # ---------------------------------------------------------------------------------
+    def get_global_template_context(self):
+        global_context = {
+            # builtins
+            "True": None,
+            "False": None,
+            "None": None,
+        }
+
+        # Update object types
+        TEMPLATE_CONTEXT_PROCESSORS["django.contrib.auth.context_processors.auth"][
+            "user"
+        ] = f"{get_user_model().__module__}.{get_user_model().__name__}"
+
+        for context_processor in Engine.get_default().template_context_processors:
+            module_path = ".".join(
+                [context_processor.__module__, context_processor.__name__]
+            )
+            if context := TEMPLATE_CONTEXT_PROCESSORS.get(module_path):
+                global_context.update(context)
+        return global_context
+
+    # Third party: Wagtail
+    # ---------------------------------------------------------------------------------
+    def collect_for_wagtail(self):
+        try:
+            from wagtail.models import Page
+        except ImportError:
+            return
+        for model in apps.get_models():
+            if issubclass(model, Page) and model.template in self.templates:
+                self.templates[model.template]["context"].update(
+                    {
+                        "page": model.__module__ + "." + model.__name__,
+                        "self": model.__module__ + "." + model.__name__,
+                    }
                 )
-    return template_files
+                if model.context_object_name:
+                    self.templates[model.template]["context"][
+                        model.context_object_name
+                    ] = (model.__module__ + "." + model.__name__)
 
 
-def _get_template(engine: Engine, template_name: str) -> Template:
-    for loader in engine.template_loaders:
-        for origin in loader.get_template_sources(template_name):
-            try:
-                return Template(
-                    path=str(origin),
-                    name=template_name,
-                    content=loader.get_contents(origin),
-                )
-            except Exception:
-                pass
-    return Template(name=template_name)
-
-
-re_extends = re.compile(r""".*{% ?extends ['"](.*)['"] ?%}.*""")
-re_block = re.compile(r".*{% ?block (\w*) ?%}.*")
-
-
-def get_global_template_context():
-    global_context = {
-        # builtins
-        "True": None,
-        "False": None,
-        "None": None,
-    }
-
-    # Update object types
-    TEMPLATE_CONTEXT_PROCESSORS["django.contrib.auth.context_processors.auth"][
-        "user"
-    ] = f"{get_user_model().__module__}.{get_user_model().__name__}"
-
-    for context_processor in Engine.get_default().template_context_processors:
-        module_path = ".".join(
-            [context_processor.__module__, context_processor.__name__]
-        )
-        if context := TEMPLATE_CONTEXT_PROCESSORS.get(module_path):
-            global_context.update(context)
-    return global_context
-
-
-def _parse_template(project_src_path, template: Template) -> dict:
-    extends = None
-    blocks = set()
-    for line in template.content.splitlines():
-        if match := re_extends.match(line):
-            extends = match.group(1)
-        if match := re_block.match(line):
-            blocks.add(match.group(1))
-
-    path = ""
-    if template.path.startswith(project_src_path):
-        path = f"src:{template.path.removeprefix(project_src_path).lstrip('/')}"
-    elif template.path.startswith(sys.prefix):
-        path = f"env:{template.path.removeprefix(sys.prefix).lstrip('/')}"
-
-    return {
-        "path": path,
-        "extends": extends,
-        "blocks": list(blocks),
-        "context": get_wagtail_page_context(
-            template.name
-        ),  # TODO: Find view/model/contectprocessors
-    }
-
-
-def collect_project_data(project_src_path):
-    return {
-        "file_watcher_globs": get_file_watcher_globs(),
-        "static_files": get_static_files(),
-        "urls": get_urls(),
-        "libraries": get_libraries(),
-        "templates": get_templates(project_src_path),
-        "global_template_context": get_global_template_context(),
-    }
-
-
+#######################################################################################
+# CLI
+#######################################################################################
 def get_default_django_settings_module():
     try:
         # Patch django execute to prevent it from running when calling main
@@ -459,6 +498,16 @@ if __name__ == "__main__":
             django_settings_module,
         )
 
+    # Enable error logging to stderr
+    logging.basicConfig(
+        level=logging.ERROR,
+        format="%(message)s",
+        handlers=[logging.StreamHandler(sys.stderr)],
+    )
+
     django.setup()
 
-    print(json.dumps(collect_project_data(project_src_path), indent=4))
+    collector = DjangoIndexCollector(project_src_path)
+    collector.collect()
+
+    print(collector.to_json())
