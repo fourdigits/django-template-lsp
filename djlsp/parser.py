@@ -2,7 +2,9 @@ import logging
 import re
 from functools import cached_property
 from re import Match
+from textwrap import dedent
 
+import jedi
 from lsprotocol.types import CompletionItem, Hover, Location, Position, Range
 from pygls.workspace import TextDocument
 
@@ -14,8 +16,14 @@ logger = logging.getLogger(__name__)
 
 class TemplateParser:
 
-    def __init__(self, workspace_index: WorkspaceIndex, document: TextDocument):
+    def __init__(
+        self,
+        workspace_index: WorkspaceIndex,
+        jedi_project: jedi.Project,
+        document: TextDocument,
+    ):
         self.workspace_index: WorkspaceIndex = workspace_index
+        self.jedi_project: jedi.Project = jedi_project
         self.document: TextDocument = document
 
     @cached_property
@@ -33,6 +41,87 @@ class TemplateParser:
                 )
         logger.debug(f"Loaded libraries: {loaded}")
         return loaded
+
+    @cached_property
+    def context(self):
+        context = self.workspace_index.global_template_context.copy()
+        if "/templates/" in self.document.path:
+            template_name = self.document.path.split("/templates/", 1)[1]
+            if template := self.workspace_index.templates.get(template_name):
+                context.update(template.context)
+
+        # Add all variables found in template to context
+        # TODO: Use scope to only add to context based on cursor position
+        re_as = re.compile(r".*{%.*as ([\w ]+) %}.*$")
+        re_for = re.compile(r".*{% ?for ([\w ,]*) in.*$")
+        re_with = re.compile(r".*{% ?with (.+) ?%}.*")
+        found_variables = []
+        for line in self.document.lines:
+            if match := re_as.match(line):
+                found_variables.extend(match.group(1).split(" "))
+            if match := re_for.match(line):
+                context["forloop"] = None
+                found_variables.extend(match.group(1).split(","))
+            if match := re_with.match(line):
+                for assignment in match.group(1).split(" "):
+                    split_assignment = assignment.split("=")
+                    if len(split_assignment) == 2:
+                        found_variables.append(split_assignment[0])
+
+        for variable in found_variables:
+            if variable_stripped := variable.strip():
+                context[variable_stripped] = None
+
+        # Update type definations based on template type comments
+        # only simple version of variable: full python path:
+        # {# type some_variable: full.python.path.to.class #}
+        re_type = re.compile(r".*{# type (\w+) ?: ?([\w\d_\.]+) ?#}.*")
+        for line in self.document.lines:
+            if match := re_type.match(line):
+                variable = match.group(1)
+                variable_type = match.group(2)
+                context[variable] = variable_type
+
+        return context
+
+    def create_jedi_script(self, code) -> jedi.Script:
+        """
+        Generate jedi Script based on template context and given code.
+        """
+        script_lines = []
+        if re.search(r"{% ?for ", self.document.source):
+            # TODO: Only add in for scope
+            script_lines.append(
+                dedent(
+                    """
+                    class DummyForLoop:
+                        counter: int
+                        counter0: int
+                        revcounter: int
+                        revcounter0: int
+                        first: bool
+                        last: bool
+                        parentloop: "DummyForLoop"
+                    forloop: DummyForLoop
+                    """
+                )
+            )
+        for variable, variable_type in self.context.items():
+            if variable_type:
+                variable_import = ".".join(variable_type.split(".")[:-1])
+                script_lines.extend(
+                    [
+                        f"import {variable_import}",
+                        f"{variable}: {variable_type}",
+                    ]
+                )
+            else:
+                script_lines.append(f"{variable} = None")
+
+        # Add user code
+        script_lines.append(code)
+
+        return jedi.Script(code="\n".join(script_lines), project=self.jedi_project)
 
     ###################################################################################
     # Completions
@@ -186,77 +275,39 @@ class TemplateParser:
     def get_type_comment_complations(self, match: Match):
         prefix = match.group(1)
         logger.debug(f"Find type comment matches for: {prefix}")
+
+        if "." in prefix:
+            from_part = ".".join(prefix.split(".")[:-1])
+            import_part = prefix.split(".")[-1]
+            code = f"from {from_part} import {import_part}"
+        else:
+            code = f"import {prefix}"
+
         return [
-            CompletionItem(object_path)
-            for object_path in self.workspace_index.object_types.keys()
-            if object_path.startswith(prefix)
+            CompletionItem(label=comp.name)
+            for comp in self.create_jedi_script(code).complete()
         ]
 
     def get_context_completions(self, match: Match):
         prefix = match.group(2)
         logger.debug(f"Find context matches for: {prefix}")
-        context = self.workspace_index.global_template_context.copy()
-        if "/templates/" in self.document.path:
-            template_name = self.document.path.split("/templates/", 1)[1]
-            if template := self.workspace_index.templates.get(template_name):
-                context.update(template.context)
 
-        # Add all variables found in template to context
-        # TODO: Use scope to only add to context based on cursor position
-        re_as = re.compile(r".*{%.*as ([\w ]+) %}.*$")
-        re_for = re.compile(r".*{% ?for ([\w ,]*) in.*$")
-        re_with = re.compile(r".*{% ?with (.+) ?%}.*")
-        found_variables = []
-        for line in self.document.lines:
-            if match := re_as.match(line):
-                found_variables.extend(match.group(1).split(" "))
-            if match := re_for.match(line):
-                found_variables.extend(match.group(1).split(","))
-            if match := re_with.match(line):
-                for assignment in match.group(1).split(" "):
-                    split_assignment = assignment.split("=")
-                    if len(split_assignment) == 2:
-                        found_variables.append(split_assignment[0])
-
-        for variable in found_variables:
-            if variable_stripped := variable.strip():
-                context[variable_stripped] = None
-
-        # Update type definations based on template type comments
-        # only simple version of variable: full python path:
-        # {# type some_variable: full.python.path.to.class #}
-        re_type = re.compile(r".*{# type (\w+) ?: ?([\w\d_\.]+) ?#}.*")
-        for line in self.document.lines:
-            if match := re_type.match(line):
-                variable = match.group(1)
-                variable_type = match.group(2)
-                # TODO: What about non Django model objects
-                if variable_type in self.workspace_index.object_types:
-                    context[variable] = variable_type
-
-        prefix, lookup_context = self._recursive_context_lookup(
-            prefix.strip().split("."), context
-        )
-
-        return [
-            CompletionItem(label=var)
-            for var in lookup_context
-            if var.startswith(prefix)
-        ]
-
-    def _recursive_context_lookup(self, parts: [str], context: dict[str, str]):
-        if len(parts) == 1:
-            return parts[0], context
-
-        variable, *parts = parts
-
-        # Get new context
-        if variable_type := context.get(variable):
-            if new_context := self.workspace_index.object_types.get(variable_type):
-                return self._recursive_context_lookup(parts, new_context)
-
-        # No suggesions found
-        return "", []
+        if "." in prefix:
+            # Find . completions with Jedi
+            return [
+                CompletionItem(label=comp.name)
+                for comp in self.create_jedi_script(prefix).complete()
+                # Functions are ignored since Django templates do not allow
+                # passing arguments to them.
+                if comp.type != "function" and not comp.name.startswith("__")
+            ]
+        else:
+            # Only context completions
+            return [
+                CompletionItem(label=var)
+                for var in self.context
+                if var.startswith(prefix)
+            ]
 
     ###################################################################################
     # Hover

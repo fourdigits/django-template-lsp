@@ -41,7 +41,6 @@ class WorkspaceIndex:
     libraries: dict[str, Library] = field(default_factory=dict)
     templates: dict[str, Template] = field(default_factory=dict)
     global_template_context: dict[str, str] = field(default_factory=dict)
-    object_types: dict[str, dict] = field(default_factory=dict)
 
     def update(self, django_data: dict):
         self.file_watcher_globs = django_data.get(
@@ -79,4 +78,3 @@ class WorkspaceIndex:
         }
 
         self.global_template_context = django_data.get("global_template_context", {})
-        self.object_types = django_data.get("object_types", {})

@@ -34,8 +34,6 @@ type hint support is provided directly in the template files:
 {# type blog: blogs.models.Blog #}
 ```
 
-*Note: Currently, this feature only supports Django models.*
-
 ## Editors
 
 ### Helix
