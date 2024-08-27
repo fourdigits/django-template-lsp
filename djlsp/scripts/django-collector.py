@@ -187,6 +187,29 @@ class DjangoIndexCollector:
             indent=4,
         )
 
+    def get_source_from_type(self, type_):
+        def unwrap(func):
+            while hasattr(func, "__wrapped__"):
+                func = func.__wrapped__
+            return func
+
+        type_ = unwrap(type_)
+
+        try:
+            source_file = inspect.getsourcefile(type_)
+            line = inspect.getsourcelines(type_)[1]
+        except Exception as e:
+            logger.error(e)
+            return ""
+
+        if source_file.startswith(self.project_src_path):
+            path = source_file.removeprefix(self.project_src_path).lstrip("/")
+            return f"src:{path}:{line}"
+        elif source_file.startswith(sys.prefix):
+            path = source_file.removeprefix(sys.prefix).lstrip("/")
+            return f"env:{path}:{line}"
+        return ""
+
     # File watcher globs
     # ---------------------------------------------------------------------------------
     def get_file_watcher_globs(self):
@@ -336,12 +359,14 @@ class DjangoIndexCollector:
             "tags": {
                 name: {
                     "docs": func.__doc__.strip() if func.__doc__ else "",
+                    "source": self.get_source_from_type(func),
                 }
                 for name, func in lib.tags.items()
             },
             "filters": {
                 name: {
                     "docs": func.__doc__.strip() if func.__doc__ else "",
+                    "source": self.get_source_from_type(func),
                 }
                 for name, func in lib.filters.items()
             },

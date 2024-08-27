@@ -14,6 +14,7 @@ class Template:
 class Tag:
     name: str = ""
     docs: str = ""
+    source: str = ""
     inner_tags: list[str] = ""
     closing_tag: str = ""
 
@@ -22,6 +23,7 @@ class Tag:
 class Filter:
     name: str = ""
     docs: str = ""
+    source: str = ""
 
 
 @dataclass
@@ -56,6 +58,7 @@ class WorkspaceIndex:
                     name: Filter(
                         name=name,
                         docs=filter_options.get("docs", ""),
+                        source=filter_options.get("source", ""),
                     )
                     for name, filter_options in lib_data.get("filters", {}).items()
                 },
@@ -63,6 +66,7 @@ class WorkspaceIndex:
                     tag: Tag(
                         name=tag,
                         docs=tag_options.get("docs"),
+                        source=tag_options.get("source", ""),
                         inner_tags=tag_options.get("inner_tags", []),
                         closing_tag=tag_options.get("closing_tag"),
                     )
