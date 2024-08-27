@@ -360,6 +360,10 @@ class TemplateParser:
                 re.compile(r""".*{% ?(extends|include) ('|")([\w\-\./]*)$"""),
                 self.get_template_definition,
             ),
+            (
+                re.compile(r".*({{|{% \w+ ).*?([\w\d_\.]*)$"),
+                self.get_context_definition,
+            ),
         ]
         for regex, definition in matchers:
             if match := regex.match(line_fragment):
@@ -384,6 +388,26 @@ class TemplateParser:
                         end=Position(line=0, character=0),
                     ),
                 )
+
+    def get_context_definition(self, line, character, match: Match):
+        first_match = match.group(2)
+        full_match = self._get_full_definition_name(line, character, first_match)
+        logger.debug(f"Find context goto definition for: {full_match}")
+        if gotos := self.create_jedi_script(full_match).goto(column=len(first_match)):
+            goto = gotos[0]
+            if goto.module_name == "__main__":
+                # Location is in fake script get type location
+                if infers := goto.infer():
+                    goto = infers[0]
+                else:
+                    return None
+            return Location(
+                uri=f"file://{goto.module_path}",
+                range=Range(
+                    start=Position(line=goto.line, character=goto.column),
+                    end=Position(line=goto.line, character=goto.column),
+                ),
+            )
 
     def _get_full_definition_name(self, line, character, first_part):
         if match_after := re.match(
