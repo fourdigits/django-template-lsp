@@ -360,6 +360,8 @@ class TemplateParser:
                 re.compile(r""".*{% ?(extends|include) ('|")([\w\-\./]*)$"""),
                 self.get_template_definition,
             ),
+            (re.compile(r"^.*{% ?(\w*)$"), self.get_tag_definition),
+            (re.compile(r"^.*({%|{{).*?\|(\w*)$"), self.get_filter_definition),
             (
                 re.compile(r".*({{|{% \w+ ).*?([\w\d_\.]*)$"),
                 self.get_context_definition,
@@ -370,24 +372,43 @@ class TemplateParser:
                 return definition(line, character, match)
         return None
 
+    def create_location(self, location, path, line):
+        root_path = (
+            self.workspace_index.src_path
+            if location == "src"
+            else self.workspace_index.env_path
+        )
+        return Location(
+            uri=f"file://{root_path}/{path}",
+            range=Range(
+                start=Position(line=int(line), character=0),
+                end=Position(line=int(line), character=0),
+            ),
+        )
+
     def get_template_definition(self, line, character, match: Match):
         if match_after := re.match(r'^(.*)".*', self.document.lines[line][character:]):
             template_name = match.group(3) + match_after.group(1)
             logger.debug(f"Find template goto definition for: {template_name}")
             if template := self.workspace_index.templates.get(template_name):
                 location, path = template.path.split(":")
-                root_path = (
-                    self.workspace_index.src_path
-                    if location == "src"
-                    else self.workspace_index.env_path
-                )
-                return Location(
-                    uri=f"file://{root_path}/{path}",
-                    range=Range(
-                        start=Position(line=0, character=0),
-                        end=Position(line=0, character=0),
-                    ),
-                )
+                return self.create_location(location, path, 0)
+
+    def get_tag_definition(self, line, character, match: Match):
+        full_match = self._get_full_definition_name(line, character, match.group(1))
+        logger.debug(f"Find tag goto definition for: {full_match}")
+        for lib in self.loaded_libraries:
+            if tag := self.workspace_index.libraries[lib].tags.get(full_match):
+                if tag.source:
+                    return self.create_location(*tag.source.split(":"))
+
+    def get_filter_definition(self, line, character, match: Match):
+        full_match = self._get_full_definition_name(line, character, match.group(2))
+        logger.debug(f"Find filter goto definition for: {full_match}")
+        for lib in self.loaded_libraries:
+            if filter_ := self.workspace_index.libraries[lib].filters.get(full_match):
+                if filter_.source:
+                    return self.create_location(*filter_.source.split(":"))
 
     def get_context_definition(self, line, character, match: Match):
         first_match = match.group(2)
