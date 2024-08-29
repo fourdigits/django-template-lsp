@@ -1,12 +1,29 @@
-# Django template LSP
+# Django Template Language Server (LSP)
 
-A simple Django template LSP for completions that has support for:
+The Django Template Language Server (LSP) enhances your Django development
+experience with powerful features for navigating and editing template files.
+This LSP supports:
 
-- Custom `tags` and `filters`
-- templates for `extends` and `includes`
-- load tag
-- static files
-- urls
+### Completions
+
+- **Custom Tags and Filters**: Autocomplete for your custom template tags and filters.
+- **Template**: Suggestions for `extends` and `includes` statements.
+- **Load Tag**: Autocomplete for `{% load %}` tags.
+- **Static Files**: Path suggestions for `{% static %}` tags.
+- **URLs**: Autocomplete for `{% url %}` tags.
+
+### Go to Definitions
+
+- **Template**: Jump directly to the templates used in `extends` and `includes`.
+- **URL Tag**: Navigate to the views referenced in `{% url %}` tags.
+- **Tags and Filters**: Quickly access the definitions of custom tags and filters.
+- **Context Variables**: Partial support for jumping to context definitions.
+
+### Hover Documentation
+
+- **URLs**: Inline documentation for `{% url %}` tags.
+- **Tags and Filters**: Detailed descriptions for template tags and filters.
+
 
 ## Support (tested)
 
@@ -22,7 +39,7 @@ A simple Django template LSP for completions that has support for:
 
 - `docker_compose_file` (string) default: "docker-compose.yml"
 - `docker_compose_service` (string) default: "django"
-- `django_settings_module` (string) default: ""
+- `django_settings_module` (string) default (auto detected when empty): ""
 
 ## Type hints
 
