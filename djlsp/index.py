@@ -11,6 +11,13 @@ class Template:
 
 
 @dataclass
+class Url:
+    name: str = ""
+    docs: str = ""
+    source: str = ""
+
+
+@dataclass
 class Tag:
     name: str = ""
     docs: str = ""
@@ -39,7 +46,7 @@ class WorkspaceIndex:
     env_path: str = ""
     file_watcher_globs: [str] = field(default_factory=list)
     static_files: [str] = field(default_factory=list)
-    urls: [str] = field(default_factory=list)
+    urls: dict[str, Url] = field(default_factory=dict)
     libraries: dict[str, Library] = field(default_factory=dict)
     templates: dict[str, Template] = field(default_factory=dict)
     global_template_context: dict[str, str] = field(default_factory=dict)
@@ -49,7 +56,14 @@ class WorkspaceIndex:
             "file_watcher_globs", self.file_watcher_globs
         )
         self.static_files = django_data.get("static_files", self.static_files)
-        self.urls = django_data.get("urls", self.urls)
+        self.urls = {
+            name: Url(
+                name=name,
+                docs=options.get("docs", ""),
+                source=options.get("source", ""),
+            )
+            for name, options in django_data.get("urls", {}).items()
+        }
 
         self.libraries = {
             lib_name: Library(

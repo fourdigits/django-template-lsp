@@ -216,9 +216,9 @@ class TemplateParser:
         prefix = match.group(2)
         logger.debug(f"Find url matches for: {prefix}")
         return [
-            CompletionItem(label=url)
-            for url in self.workspace_index.urls
-            if url.startswith(prefix)
+            CompletionItem(label=url.name, documentation=url.docs)
+            for url in self.workspace_index.urls.values()
+            if url.name.startswith(prefix)
         ]
 
     def get_template_completions(self, match: Match):
@@ -315,6 +315,7 @@ class TemplateParser:
     def hover(self, line, character):
         line_fragment = self.document.lines[line][:character]
         matchers = [
+            (re.compile(r""".*{% ?url ('|")([\w\-:]*)$"""), self.get_url_hover),
             (re.compile(r"^.*({%|{{) ?[\w \.\|]*\|(\w*)$"), self.get_filter_hover),
             (re.compile(r"^.*{% ?(\w*)$"), self.get_tag_hover),
         ]
@@ -322,6 +323,16 @@ class TemplateParser:
             if match := regex.match(line_fragment):
                 return hover(line, character, match)
         return None
+
+    def get_url_hover(self, line, character, match: Match):
+        full_match = self._get_full_hover_name(
+            line, character, match.group(2), regex=r"^([\w\d:\-]+).*"
+        )
+        logger.debug(f"Find url hover for: {full_match}")
+        if url := self.workspace_index.urls.get(full_match):
+            return Hover(
+                contents=url.docs,
+            )
 
     def get_filter_hover(self, line, character, match: Match):
         filter_name = self._get_full_hover_name(line, character, match.group(2))
@@ -343,10 +354,8 @@ class TemplateParser:
                 )
         return None
 
-    def _get_full_hover_name(self, line, character, first_part):
-        if match_after := re.match(
-            r"^([\w\d]+).*", self.document.lines[line][character:]
-        ):
+    def _get_full_hover_name(self, line, character, first_part, regex=r"^([\w\d]+).*"):
+        if match_after := re.match(regex, self.document.lines[line][character:]):
             return first_part + match_after.group(1)
         return first_part
 
@@ -360,6 +369,7 @@ class TemplateParser:
                 re.compile(r""".*{% ?(extends|include) ('|")([\w\-\./]*)$"""),
                 self.get_template_definition,
             ),
+            (re.compile(r""".*{% ?url ('|")([\w\-:]*)$"""), self.get_url_definition),
             (re.compile(r"^.*{% ?(\w*)$"), self.get_tag_definition),
             (re.compile(r"^.*({%|{{).*?\|(\w*)$"), self.get_filter_definition),
             (
@@ -393,6 +403,15 @@ class TemplateParser:
             if template := self.workspace_index.templates.get(template_name):
                 location, path = template.path.split(":")
                 return self.create_location(location, path, 0)
+
+    def get_url_definition(self, line, character, match: Match):
+        full_match = self._get_full_definition_name(
+            line, character, match.group(2), regex=r"^([\w\d:\-]+).*"
+        )
+        logger.debug(f"Find url goto definition for: {full_match}")
+        if url := self.workspace_index.urls.get(full_match):
+            if url.source:
+                return self.create_location(*url.source.split(":"))
 
     def get_tag_definition(self, line, character, match: Match):
         full_match = self._get_full_definition_name(line, character, match.group(1))
@@ -430,9 +449,9 @@ class TemplateParser:
                 ),
             )
 
-    def _get_full_definition_name(self, line, character, first_part):
-        if match_after := re.match(
-            r"^([\w\d]+).*", self.document.lines[line][character:]
-        ):
+    def _get_full_definition_name(
+        self, line, character, first_part, regex=r"^([\w\d]+).*"
+    ):
+        if match_after := re.match(regex, self.document.lines[line][character:]):
             return first_part + match_after.group(1)
         return first_part

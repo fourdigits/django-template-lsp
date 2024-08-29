@@ -158,7 +158,7 @@ class DjangoIndexCollector:
         # Index data
         self.file_watcher_globs = []
         self.static_files = []
-        self.urls = []
+        self.urls = {}
         self.libraries = {}
         self.templates: dict[str, Template] = {}
         self.global_template_context = {}
@@ -256,10 +256,10 @@ class DjangoIndexCollector:
         try:
             urlpatterns = __import__(settings.ROOT_URLCONF, {}, {}, [""]).urlpatterns
         except Exception:
-            return []
+            return {}
 
-        def recursive_get_views(urlpatterns, namespace=None):
-            views = []
+        def recursive_get_views(urlpatterns, namespace=None, pattern=""):
+            views = {}
             for p in urlpatterns:
                 if isinstance(p, URLPattern):
                     # TODO: Get view path/line and template context
@@ -269,7 +269,14 @@ class DjangoIndexCollector:
                         name = "{0}:{1}".format(namespace, p.name)
                     else:
                         name = p.name
-                    views.append(name)
+
+                    if name:
+                        views[name] = {
+                            "docs": f"{pattern}{p.pattern}",
+                            "source": self.get_source_from_type(
+                                getattr(p.callback, "view_class", p.callback)
+                            ),
+                        }
                 elif isinstance(p, URLResolver):
                     try:
                         patterns = p.url_patterns
@@ -279,8 +286,14 @@ class DjangoIndexCollector:
                         _namespace = "{0}:{1}".format(namespace, p.namespace)
                     else:
                         _namespace = p.namespace or namespace
-                    views.extend(recursive_get_views(patterns, namespace=_namespace))
-            return list(filter(None, views))
+                    views.update(
+                        recursive_get_views(
+                            patterns,
+                            namespace=_namespace,
+                            pattern=f"{pattern}{p.pattern}",
+                        )
+                    )
+            return views
 
         return recursive_get_views(urlpatterns)
 
