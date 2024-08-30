@@ -30,7 +30,7 @@ lint:
 test: lint
 	$(BIN)/tox run
 
-install-ci:
+install-ci: $(ENV)
 	$(PYTHON) -m pip install --upgrade pip setuptools wheel twine .
 
 .PHONY: build
