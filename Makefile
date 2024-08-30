@@ -30,6 +30,9 @@ lint:
 test: lint
 	$(BIN)/tox run
 
+install-ci:
+	$(PYTHON) -m pip install --upgrade pip setuptools wheel twine .
+
 .PHONY: build
 build:
 	$(PYTHON) setup.py sdist bdist_wheel
