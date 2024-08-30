@@ -71,4 +71,3 @@ jobs:
 
             Get it [here](https://pypi.org/project/${{ github.repository }}/${{ github.ref_name }})
           draft: true
-          files: dist/*
