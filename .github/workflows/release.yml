@@ -69,6 +69,6 @@ jobs:
             What's changed:
               * TODO
 
-            Get it [here](https://pypi.org/project/${{ github.repository }}/${{ github.ref_name }})
+            Get it [here](https://pypi.org/project/django-template-lsp/${{ github.ref_name }})
           draft: true
           files: dist/
