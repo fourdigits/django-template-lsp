@@ -7,7 +7,7 @@ import os
 import re
 import sys
 from dataclasses import dataclass
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import django
 from django.apps import apps
@@ -19,6 +19,9 @@ from django.template.engine import Engine
 from django.template.library import InvalidTemplateLibrary
 from django.template.utils import get_app_template_dirs
 from django.urls import URLPattern, URLResolver
+from django.views.generic.detail import SingleObjectMixin
+from django.views.generic.edit import FormMixin
+from django.views.generic.list import MultipleObjectMixin
 
 logger = logging.getLogger(__name__)
 
@@ -210,6 +213,9 @@ class DjangoIndexCollector:
             return f"env:{path}:{line}"
         return ""
 
+    def get_type_full_name(self, type_):
+        return f"{type_.__module__}.{type_.__name__}"
+
     # File watcher globs
     # ---------------------------------------------------------------------------------
     def get_file_watcher_globs(self):
@@ -271,11 +277,14 @@ class DjangoIndexCollector:
                         name = p.name
 
                     if name:
+                        callback = getattr(p.callback, "view_class", p.callback)
+                        try:
+                            self.add_template_context_for_view(callback)
+                        except Exception:
+                            pass
                         views[name] = {
                             "docs": f"{pattern}{p.pattern}",
-                            "source": self.get_source_from_type(
-                                getattr(p.callback, "view_class", p.callback)
-                            ),
+                            "source": self.get_source_from_type(callback),
                         }
                 elif isinstance(p, URLResolver):
                     try:
@@ -385,7 +394,7 @@ class DjangoIndexCollector:
             },
         }
 
-    # Libaries
+    # Templates
     # ---------------------------------------------------------------------------------
     def get_templates(self):
         template_files = {}
@@ -410,6 +419,43 @@ class DjangoIndexCollector:
                         self._get_template(default_engine, template_name),
                     )
         return template_files
+
+    def add_template_context_for_view(self, view):
+        view_obj = view(request=MagicMock())
+
+        try:
+            template_name = view_obj.get_template_names()[0]
+        except Exception:
+            template_name = getattr(view, "template_name", None)
+
+        if template_name in self.templates:
+            if issubclass(view, SingleObjectMixin) and hasattr(view, "model"):
+                context = {"object": self.get_type_full_name(view.model)}
+                try:
+                    context_name = view_obj.get_context_object_name(view.model)
+                    if context_name:
+                        context[context_name] = context["object"]
+                except Exception:
+                    pass
+                self.templates[template_name]["context"].update(context)
+            if issubclass(view, MultipleObjectMixin):
+                try:
+                    paginator = self.get_type_full_name(view.paginator_class)
+                except Exception:
+                    paginator = "django.core.paginator.Paginator"
+
+                self.templates[template_name]["context"].update(
+                    {
+                        "paginator": paginator,
+                        "page_obj": "django.core.paginator.Page",
+                        "is_paginated": "bool",
+                        "object_list": "django.db.models.QuerySet",
+                    }
+                )
+            if issubclass(view, FormMixin) and hasattr(view, "form_class"):
+                self.templates[template_name]["context"].update(
+                    {"form": self.get_type_full_name(view.form_class)}
+                )
 
     def _parse_template(self, template: Template) -> dict:
         extends = None
