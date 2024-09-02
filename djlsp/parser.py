@@ -157,7 +157,16 @@ class TemplateParser:
 
         for regex, completion in matchers:
             if match := regex.match(line_fragment):
-                return completion(match)
+                # Sort completions because some editors (Helix) will use order
+                # as is and wont use sort_text.
+                return list(
+                    sorted(
+                        completion(match),
+                        key=lambda comp: (
+                            comp.sort_text if comp.sort_text else comp.label
+                        ),
+                    )
+                )
         return []
 
     def get_load_completions(self, match: Match):
@@ -292,19 +301,21 @@ class TemplateParser:
         prefix = match.group(2)
         logger.debug(f"Find context matches for: {prefix}")
 
+        def get_sort_text(comp):
+            type_sort = {"statement": "1", "property": "2"}.get(comp.type, "9")
+            return f"{type_sort}-{comp.name}".lower()
+
         if "." in prefix:
             # Find . completions with Jedi
             return [
-                CompletionItem(label=comp.name)
+                CompletionItem(label=comp.name, sort_text=get_sort_text(comp))
                 for comp in self.create_jedi_script(prefix).complete()
-                # Functions are ignored since Django templates do not allow
-                # passing arguments to them.
-                if comp.type != "function" and not comp.name.startswith("__")
+                if not comp.name.startswith("_")
             ]
         else:
             # Only context completions
             return [
-                CompletionItem(label=var)
+                CompletionItem(label=var, sort_text=var.lower())
                 for var in self.context
                 if var.startswith(prefix)
             ]
