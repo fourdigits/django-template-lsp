@@ -2,7 +2,7 @@
 
 To create a new release, follow these steps:
 
-- Update the version number in `djlsp/__init__.py` and push this to `main`.
+- Update the version number in `pyproject.toml` and push this to `main`.
     - We use [semantic](https://semver.org/) versioning.
 - Create a new tag and push the tag using `git push --tags`.
 
