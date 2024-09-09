@@ -1,0 +1,60 @@
+[project]
+name = "django-template-lsp"
+version = "0.9.5"
+description = "Django template LSP"
+readme = "README.md"
+authors = [{name = "Four Digits", email = "info@fourdigits.nl" }]
+license = { file = "LICENSE" }
+classifiers = [
+    "Environment :: Web Environment",
+    "Framework :: Django",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GPL3 License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12"
+]
+keywords = ["django", "template", "lsp", "python"]
+dependencies = [
+    "pygls",
+    "jedi"
+]
+requires-python = ">=3.9"
+
+[project.scripts]
+djlsp = "djlsp.cli:main"
+django-template-lsp = "djlsp.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "tox",
+    "black",
+    "isort",
+    "flake8",
+    "pytest",
+    "pytest-check",
+    "pytest-cov",
+]
+
+[project.urls]
+Homepage = "https://github.com/fourdigits/django-template-lsp"
+
+[build-system]
+requires = ["setuptools", "wheel", "build"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+include-package-data = false
+
+[tool.setuptools.packages.find]
+include = ["djlsp*"]
+
+[tool.isort]
+profile = "black"
+known_first_party = "djlsp"
+
+[tool.flake8]
+max-line-length = 88
+extend-ignore = "W503"

@@ -1,1 +1,3 @@
-__version__ = "0.9.5"
+from importlib.metadata import version
+
+__version__ = version("django-template-lsp")

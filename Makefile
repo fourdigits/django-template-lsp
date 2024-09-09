@@ -1,7 +1,7 @@
 ENV = env
 BIN = $(ENV)/bin
 PYTHON = $(BIN)/python
-CODE_LOCATIONS = djlsp setup.py tests
+CODE_LOCATIONS = djlsp tests
 
 clean:
 	rm -rf $(ENV)
@@ -31,11 +31,11 @@ test: lint
 	$(BIN)/tox run
 
 install-ci: $(ENV)
-	$(PYTHON) -m pip install --upgrade pip setuptools wheel twine .
+	$(PYTHON) -m pip install --upgrade pip setuptools wheel twine build .
 
 .PHONY: build
 build:
-	$(PYTHON) setup.py sdist bdist_wheel
+	$(PYTHON) -m build
 	$(BIN)/twine check dist/*
 
 upload:
