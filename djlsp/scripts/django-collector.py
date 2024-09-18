@@ -75,7 +75,15 @@ LIBRARIES_NODE_TAGS = {
     "i18n": {
         "language": {
             "closing_tag": "endlanguage",
-        }
+        },
+        "blocktrans": {
+            "inner_tags": ["plural"],
+            "closing_tag": "endblocktrans",
+        },
+        "blocktranslate": {
+            "inner_tags": ["plural"],
+            "closing_tag": "endblocktranslate",
+        },
     },
     "l10n": {
         "localize": {
