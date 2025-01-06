@@ -78,7 +78,7 @@ django_settings_modules="<your.settings.module>"
 In your lspconfig add the following
 
 ```lua
-require'lspconfig'.djlsp.setup{
+require'lspconfig'.django-template-lsp.setup{
     cmd = { "<path-to-djlsp>" },
     init_options = {
         djlsp = {
