@@ -41,6 +41,22 @@ This LSP supports:
 - `docker_compose_service` (string) default: "django"
 - `django_settings_module` (string) default (auto detected when empty): ""
 
+## Data Collection Method
+
+The Django Template Language Server collects project data by executing a script in the following order:
+
+1. **Virtual Environment**:
+    - Checks for a virtual environment in the root directory within one of these folders: `env`, `.env`, `venv`, or `.venv`.
+    - If found, runs the `django-collector.py` script using the virtual environment's Python interpreter.
+
+2. **Docker Compose**:
+    - If a Docker Compose file (`docker-compose.yml` by default) is present and includes the specified service (`django` by default), the script is executed within that Docker service.
+
+3. **Global Python**:
+    - If neither a virtual environment nor Docker Compose is detected, the script runs using the global `python3` installation on the system.
+
+**Note**: The data collection process will fail if there are Python syntax errors or missing imports in your project.
+
 ## Type hints
 
 Due to the highly dynamic nature of Python and Django, it can be challenging to
