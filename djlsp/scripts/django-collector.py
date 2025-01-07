@@ -19,6 +19,7 @@ from django.template.engine import Engine
 from django.template.library import InvalidTemplateLibrary
 from django.template.utils import get_app_template_dirs
 from django.urls import URLPattern, URLResolver
+from django.views.generic import View
 from django.views.generic.detail import SingleObjectMixin
 from django.views.generic.edit import FormMixin
 from django.views.generic.list import MultipleObjectMixin
@@ -429,6 +430,11 @@ class DjangoIndexCollector:
         return template_files
 
     def add_template_context_for_view(self, view):
+        if not issubclass(view, View):
+            # Ensure only class-based views (CBVs) are allowed; function-based
+            # views (FBVs) are not supported
+            return
+
         view_obj = view(request=MagicMock())
 
         try:
