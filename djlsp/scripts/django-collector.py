@@ -127,7 +127,7 @@ TEMPLATE_CONTEXT_PROCESSORS = {
         "MEDIA_URL": None,
     },
     "django.template.context_processors.request": {
-        "request": None,
+        "request": "django.http.request.HttpRequest",
     },
     # Django: auth
     "django.contrib.auth.context_processors.auth": {
