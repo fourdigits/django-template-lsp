@@ -131,6 +131,7 @@ class TemplateParser:
         matchers = [
             (re.compile(r".*{% ?load ([\w ]*)$"), self.get_load_completions),
             (re.compile(r".*{% ?block ([\w]*)$"), self.get_block_completions),
+            (re.compile(r".*{% ?endblock ([\w]*)$"), self.get_endblock_completions),
             (re.compile(r""".*{% ?url ('|")([\w\-:]*)$"""), self.get_url_completions),
             (
                 re.compile(r".*{% ?static ('|\")([\w\-\.\/]*)$"),
@@ -161,7 +162,7 @@ class TemplateParser:
                 # as is and wont use sort_text.
                 return list(
                     sorted(
-                        completion(match),
+                        completion(match, line=line, character=character),
                         key=lambda comp: (
                             comp.sort_text if comp.sort_text else comp.label
                         ),
@@ -169,7 +170,7 @@ class TemplateParser:
                 )
         return []
 
-    def get_load_completions(self, match: Match):
+    def get_load_completions(self, match: Match, **kwargs):
         prefix = match.group(1).split(" ")[-1]
         logger.debug(f"Find load matches for: {prefix}")
         return [
@@ -178,7 +179,7 @@ class TemplateParser:
             if lib != BUILTIN and lib.startswith(prefix)
         ]
 
-    def get_block_completions(self, match: Match):
+    def get_block_completions(self, match: Match, **kwargs):
         prefix = match.group(1).strip()
         logger.debug(f"Find block matches for: {prefix}")
         block_names = []
@@ -188,7 +189,7 @@ class TemplateParser:
                 block_names = self._recursive_block_names(template.extends)
 
         used_block_names = []
-        re_block = re.compile(r"{% ?block ([\w]*) ?%}")
+        re_block = re.compile(r"{% *block ([\w]*) *%}")
         for line in self.document.lines:
             if matches := re_block.findall(line):
                 used_block_names.extend(matches)
@@ -198,6 +199,24 @@ class TemplateParser:
             for name in block_names
             if name not in used_block_names and name.startswith(prefix)
         ]
+
+    def get_endblock_completions(self, match: Match, line, character):
+        prefix = match.group(1).strip()
+        logger.debug(f"Find endblock matches for: {prefix}")
+        items = {}
+
+        re_block = re.compile(r"{% *block ([\w]*) *%}")
+        for text_line in self.document.lines[:line]:
+            if matches := re_block.findall(text_line):
+                for name in reversed(matches):
+                    items.setdefault(
+                        name,
+                        CompletionItem(
+                            label=name,
+                            sort_text=f"{999 - len(items)}: {name}",
+                        ),
+                    )
+        return [item for item in items.values() if item.label.startswith(prefix)]
 
     def _recursive_block_names(self, template_name, looked_up_templates=None):
         looked_up_templates = looked_up_templates if looked_up_templates else []
@@ -212,7 +231,7 @@ class TemplateParser:
                 )
         return list(set(block_names))
 
-    def get_static_completions(self, match: Match):
+    def get_static_completions(self, match: Match, **kwargs):
         prefix = match.group(2)
         logger.debug(f"Find static matches for: {prefix}")
         return [
@@ -221,7 +240,7 @@ class TemplateParser:
             if static_file.startswith(prefix)
         ]
 
-    def get_url_completions(self, match: Match):
+    def get_url_completions(self, match: Match, **kwargs):
         prefix = match.group(2)
         logger.debug(f"Find url matches for: {prefix}")
         return [
@@ -230,7 +249,7 @@ class TemplateParser:
             if url.name.startswith(prefix)
         ]
 
-    def get_template_completions(self, match: Match):
+    def get_template_completions(self, match: Match, **kwargs):
         prefix = match.group(3)
         logger.debug(f"Find {match.group(1)} matches for: {prefix}")
         return [
@@ -239,28 +258,45 @@ class TemplateParser:
             if template.startswith(prefix)
         ]
 
-    def get_tag_completions(self, match: Match):
+    def get_tag_completions(self, match: Match, line, character):
         prefix = match.group(1)
         logger.debug(f"Find tag matches for: {prefix}")
 
-        tags = []
-        for lib_name in self.loaded_libraries:
-            if lib := self.workspace_index.libraries.get(lib_name):
-                for tag in lib.tags.values():
-                    tags.append(
-                        CompletionItem(
-                            label=tag.name,
-                            documentation=tag.docs,
-                        )
-                    )
-                    # TODO: Only add inner/clossing if there is opening tag
-                    tags.extend([CompletionItem(label=tag) for tag in tag.inner_tags])
-                    if tag.closing_tag:
-                        tags.append(CompletionItem(label=tag.closing_tag))
+        # Get all avaible tags in template
+        available_tags = {
+            tag.name: tag
+            for lib_name in self.loaded_libraries
+            for tag in self.workspace_index.libraries.get(lib_name).tags.values()
+        }
 
-        return [tag for tag in tags if tag.label.startswith(prefix)]
+        # Collect all tags above the current cursor position
+        collected_tags = []
+        tag_re = re.compile(r"{% ?(\w+).*?%}")
+        for text_line in self.document.lines[:line]:
+            for tag_name in tag_re.findall(text_line):
+                if tag := available_tags.get(tag_name):
+                    collected_tags.append(tag)
 
-    def get_filter_completions(self, match: Match):
+        # Add all tag completions
+        tags = {}
+        for tag in available_tags.values():
+            tags[tag.name] = CompletionItem(
+                label=tag.name,
+                documentation=tag.docs,
+                sort_text=f"999: {tag.name}",
+            )
+
+        # Add all inner/closing tags
+        for index, tag in enumerate(reversed(collected_tags)):
+            for tag_name in filter(None, [*tag.inner_tags, tag.closing_tag]):
+                tags.setdefault(
+                    tag_name,
+                    CompletionItem(label=tag_name, sort_text=f"{index}: {tag_name}"),
+                )
+
+        return [tag for tag in tags.values() if tag.label.startswith(prefix)]
+
+    def get_filter_completions(self, match: Match, **kwargs):
         prefix = match.group(2)
         logger.debug(f"Find filter matches for: {prefix}")
         filters = []
@@ -281,7 +317,7 @@ class TemplateParser:
             if filter_name.label.startswith(prefix)
         ]
 
-    def get_type_comment_complations(self, match: Match):
+    def get_type_comment_complations(self, match: Match, **kwargs):
         prefix = match.group(1)
         logger.debug(f"Find type comment matches for: {prefix}")
 
@@ -297,7 +333,7 @@ class TemplateParser:
             for comp in self.create_jedi_script(code).complete()
         ]
 
-    def get_context_completions(self, match: Match):
+    def get_context_completions(self, match: Match, **kwargs):
         prefix = match.group(2)
         logger.debug(f"Find context matches for: {prefix}")
 
