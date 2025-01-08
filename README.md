@@ -31,9 +31,18 @@ This LSP supports:
 - Django: 3.2, 4.2, 5.0
 
 
-## Install
+## Installation
 
-    pip install django-template-lsp
+To install the package globally and isolate it from other Python environments, use `pipx`:
+
+```bash
+pipx install django-template-lsp
+```
+
+Once installed, the Django template LSP server is accessible via the following commands:
+
+    - `djlsp`
+    - `django-template-lsp`
 
 ## Options
 
