@@ -144,6 +144,28 @@ TEMPLATE_CONTEXT_PROCESSORS = {
         # TODO: add fake settings object type with reference to models
         "settings": None,
     },
+    # Oscar
+    "oscar.core.context_processors.metadata": {
+        "shop_name": None,
+        "shop_tagline": None,
+        "homepage_url": None,
+        "language_neutral_url_path": None,
+    },
+    "oscar.apps.search.context_processors.search_form": {
+        "search_form": None,
+    },
+    "oscar.apps.checkout.context_processors.checkout": {
+        "anon_checkout_allowed": None,
+    },
+    "oscar.apps.communication.notifications.context_processors.notifications": {
+        "num_unread_notifications": None,
+    },
+    # Django CMS
+    "cms.context_processors.cms_settings": {
+        "cms_menu_renderer": None,
+        "CMS_MEDIA_URL": None,
+        "CMS_TEMPLATE": None,
+    },
 }
 
 
