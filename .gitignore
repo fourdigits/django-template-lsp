@@ -14,6 +14,7 @@ pip-selfcheck.json
 /dist/
 
 # OS and project files
+*sqlite3
 .DS_Store
 .mypy_cache
 .template-version
