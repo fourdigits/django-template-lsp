@@ -1,5 +1,9 @@
 # Static project files
 /env/
+/tests/django_test/env/
+
+# Test files
+/tests/django_test/django_app/templates/test.html
 
 # Python files
 .Python
@@ -15,6 +19,7 @@ pip-selfcheck.json
 
 # OS and project files
 *sqlite3
+*djlsp.log
 .DS_Store
 .mypy_cache
 .template-version
@@ -23,7 +28,7 @@ pip-selfcheck.json
 .env
 *.swp
 .idea/
-.helix/
+/.helix/
 
 # Coverage
 .coverage

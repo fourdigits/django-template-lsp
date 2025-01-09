@@ -119,3 +119,13 @@ require'lspconfig'.djlsp.setup{
 
 To use the Django template LSP with VSCode read the following [readme](vscode/README.md)
 
+## Development
+
+For local development, using [Helix](https://helix-editor.com) is the easiest approach.  
+The configuration for using the source Django template language server, with logging enabled, is already set up.
+
+To start the Helix editor with the environment activated and the correct workspace loaded, run:
+
+```bash
+make helix
+```
