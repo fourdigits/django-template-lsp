@@ -41,8 +41,8 @@ pipx install django-template-lsp
 
 Once installed, the Django template LSP server is accessible via the following commands:
 
-    - `djlsp`
-    - `django-template-lsp`
+- `djlsp`
+- `django-template-lsp`
 
 ## Options
 
