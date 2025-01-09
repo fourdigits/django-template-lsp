@@ -1,0 +1,10 @@
+[language-server.djlsp]
+command = "djlsp"
+args = ["--enable-log"]
+
+[language-server.djlsp.config]
+django_settings_modules="django_test.settings"
+
+[[language]]
+name = "html"
+language-servers = [ "djlsp" ]
