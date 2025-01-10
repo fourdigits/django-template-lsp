@@ -1,3 +1,4 @@
+import http.client
 import json
 import logging
 import os
@@ -92,6 +93,35 @@ class DjangoTemplateLanguageServer(LanguageServer):
         self.django_settings_module = options.get(
             "django_settings_module", self.django_settings_module
         )
+
+    def check_version(self):
+        try:
+            connection = http.client.HTTPSConnection("pypi.org", timeout=1)
+            connection.request(
+                "GET",
+                "/pypi/django-template-lsp/json",
+                headers={"User-Agent": "Python/3"},
+            )
+            response = connection.getresponse()
+            if response.status == 200:
+                latest_version = (
+                    json.loads(response.read().decode("utf-8"))
+                    .get("info", {})
+                    .get("version", "0.0.0")
+                )
+                if self._parse_version(latest_version) > self._parse_version(
+                    __version__
+                ):
+                    self.show_message(
+                        f"There is a new version for djlsp ({latest_version})"
+                        ", upgrade with `pipx upgrade django-template-lsp`"
+                    )
+        except Exception as e:
+            logger.error(f"Could not check latest version: {e}")
+
+    def _parse_version(self, version):
+        # Split the version into major, minor, and patch components
+        return tuple(map(int, str(version).split(".")))
 
     def set_file_watcher_capability(self):
         logger.info(
@@ -285,6 +315,7 @@ def initialized(ls: DjangoTemplateLanguageServer, params: InitializeParams):
     logger.debug(f"OPTIONS: {params.initialization_options}")
     if params.initialization_options:
         ls.set_initialization_options(params.initialization_options)
+    ls.check_version()
     ls.get_django_data()
 
 
