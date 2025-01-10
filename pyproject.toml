@@ -54,6 +54,7 @@ include = ["djlsp*"]
 [tool.isort]
 profile = "black"
 known_first_party = "djlsp"
+skip_glob = ["tests/django_test/env/*"]
 
 [tool.flake8]
 max-line-length = 88
