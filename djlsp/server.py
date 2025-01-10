@@ -60,6 +60,7 @@ class DjangoTemplateLanguageServer(LanguageServer):
         self.workspace_index = WorkspaceIndex()
         self.workspace_index.update(FALLBACK_DJANGO_DATA)
         self.jedi_project = jedi.Project(".")
+        self.is_initialized = False
 
     @cached_property
     def project_src_path(self):
@@ -145,7 +146,15 @@ class DjangoTemplateLanguageServer(LanguageServer):
                 f" - Global context: {len(django_data['global_template_context'])}"
             )
         else:
-            logger.info("Could not collect Django data")
+            logger.info("Could not collect project Django data")
+            if not self.is_initialized:
+                # This message is only shown during startup. On save, a full
+                # collect occurs, which may involve partial edits.  To avoid
+                # spamming the user with messages, we provide feedback only
+                # at startup.
+                self.show_message(
+                    "Failed to collect project-specific Django data. Falling back to default Django completions."  # noqa: E501
+                )
 
         if set(self.workspace_index.file_watcher_globs) != set(
             self.current_file_watcher_globs
@@ -286,6 +295,7 @@ def initialized(ls: DjangoTemplateLanguageServer, params: InitializeParams):
     if params.initialization_options:
         ls.set_initialization_options(params.initialization_options)
     ls.get_django_data()
+    ls.is_initialized = True
 
 
 @server.feature(
