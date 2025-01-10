@@ -33,6 +33,7 @@ dev = [
     "black",
     "isort",
     "flake8",
+    "flake8-pyproject",
     "pytest",
     "pytest-check",
     "pytest-cov",
@@ -59,3 +60,4 @@ skip_glob = ["tests/django_test/env/*"]
 [tool.flake8]
 max-line-length = 88
 extend-ignore = "W503"
+exclude = "tests/django_test/env/"
