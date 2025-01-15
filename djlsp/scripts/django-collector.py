@@ -1,4 +1,5 @@
 import argparse
+import ast
 import importlib
 import inspect
 import json
@@ -6,6 +7,7 @@ import logging
 import os
 import re
 import sys
+import textwrap
 from dataclasses import dataclass
 from unittest.mock import MagicMock, patch
 
@@ -19,10 +21,6 @@ from django.template.engine import Engine
 from django.template.library import InvalidTemplateLibrary
 from django.template.utils import get_app_template_dirs
 from django.urls import URLPattern, URLResolver
-from django.views.generic import View
-from django.views.generic.detail import SingleObjectMixin
-from django.views.generic.edit import FormMixin
-from django.views.generic.list import MultipleObjectMixin
 
 logger = logging.getLogger(__name__)
 
@@ -452,11 +450,10 @@ class DjangoIndexCollector:
         return template_files
 
     def add_template_context_for_view(self, view):
-        if not issubclass(view, View):
-            # Ensure only class-based views (CBVs) are allowed; function-based
-            # views (FBVs) are not supported
+        if not inspect.isclass(view):
             return
 
+        # Instantiate the view with a mock request to get template name and extra_context.
         view_obj = view(request=MagicMock())
 
         try:
@@ -464,34 +461,23 @@ class DjangoIndexCollector:
         except Exception:
             template_name = getattr(view, "template_name", None)
 
-        if template_name in self.templates:
-            if issubclass(view, SingleObjectMixin) and hasattr(view, "model"):
-                context = {"object": self.get_type_full_name(view.model)}
-                try:
-                    context_name = view_obj.get_context_object_name(view.model)
-                    if context_name:
-                        context[context_name] = context["object"]
-                except Exception:
-                    pass
-                self.templates[template_name]["context"].update(context)
-            if issubclass(view, MultipleObjectMixin):
-                try:
-                    paginator = self.get_type_full_name(view.paginator_class)
-                except Exception:
-                    paginator = "django.core.paginator.Paginator"
+        if template_name not in self.templates:
+            return
 
-                self.templates[template_name]["context"].update(
-                    {
-                        "paginator": paginator,
-                        "page_obj": "django.core.paginator.Page",
-                        "is_paginated": "bool",
-                        "object_list": "django.db.models.QuerySet",
-                    }
-                )
-            if issubclass(view, FormMixin) and hasattr(view, "form_class"):
-                self.templates[template_name]["context"].update(
-                    {"form": self.get_type_full_name(view.form_class)}
-                )
+        context_keys = self.ast_extract_context_keys(view, template_name)
+
+        if hasattr(view_obj, "extra_context") and view_obj.extra_context:
+            self.templates[template_name]["context"].update(view_obj.extra_context)
+
+        context_object_name = getattr(view_obj, "context_object_name", None)
+        if context_object_name:
+            self.templates[template_name]["context"][context_object_name] = (
+                self.get_type_full_name(view_obj.model)
+                if hasattr(view_obj, "model")
+                else None
+            )
+
+        self.templates[template_name]["context"].update(context_keys)
 
     def _parse_template(self, template: Template) -> dict:
         extends = None
@@ -571,7 +557,54 @@ class DjangoIndexCollector:
                 if model.context_object_name:
                     self.templates[model.template]["context"][
                         model.context_object_name
-                    ] = (model.__module__ + "." + model.__name__)
+                    ] = model.__module__ + "." + model.__name__
+
+    def ast_extract_context_keys(self, view_cls, template_name) -> dict:
+        """Extract context keys from a view’s get_context_data method using AST."""
+        keys = {}
+        try:
+            # Retrieve source of get_context_data from the view class
+            source = inspect.getsource(view_cls.get_context_data)
+            source = textwrap.dedent(source)
+        except Exception as e:
+            logger.warning(f"Could not get source for {view_cls}: {e}")
+            return keys
+
+        try:
+            tree = ast.parse(source)
+        except Exception as e:
+            logger.warning(f"AST parsing failed for {view_cls}: {e}")
+            return keys
+
+        for node in ast.walk(tree):
+            # Look for assignments like context['key'] = value
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if (
+                        isinstance(target, ast.Subscript)
+                        and isinstance(target.value, ast.Name)
+                        and target.value.id == "context"
+                        and isinstance(target.slice, ast.Constant)
+                        and isinstance(target.slice.value, str)
+                    ):
+                        keys[target.slice.value] = None
+
+            # Look for context.update({...}) calls
+            elif (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "context"
+                and node.func.attr == "update"
+            ):
+                for arg in node.args:
+                    if isinstance(arg, ast.Dict):
+                        for key_node in arg.keys:
+                            if isinstance(key_node, ast.Constant) and isinstance(
+                                key_node.value, str
+                            ):
+                                keys[key_node.value] = None
+        return keys
 
 
 #######################################################################################
