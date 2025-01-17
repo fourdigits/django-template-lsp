@@ -51,8 +51,8 @@ class DjangoTemplateLanguageServer(LanguageServer):
         ".venv",
     ]
 
-    def __init__(self, *args):
-        super().__init__(*args)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.file_watcher_id = str(uuid.uuid4())
         self.current_file_watcher_globs = []
         self.docker_compose_file = "docker-compose.yml"
@@ -145,7 +145,7 @@ class DjangoTemplateLanguageServer(LanguageServer):
             )
         )
 
-    def get_django_data(self):
+    def get_django_data(self, update_file_watcher=True):
         self.workspace_index.src_path = self.project_src_path
         self.workspace_index.env_path = self.project_env_path
         self.jedi_project = jedi.Project(
@@ -186,7 +186,7 @@ class DjangoTemplateLanguageServer(LanguageServer):
                     "Failed to collect project-specific Django data. Falling back to default Django completions."  # noqa: E501
                 )
 
-        if set(self.workspace_index.file_watcher_globs) != set(
+        if update_file_watcher and set(self.workspace_index.file_watcher_globs) != set(
             self.current_file_watcher_globs
         ):
             self.current_file_watcher_globs = self.workspace_index.file_watcher_globs
