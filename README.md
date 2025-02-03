@@ -1,6 +1,6 @@
-# Django Template Language Server (LSP)
+# Django Template LSP server
 
-The Django Template Language Server (LSP) enhances your Django development
+The Django Template LSP server enhances your Django development
 experience with powerful features for navigating and editing template files.
 This LSP supports:
 
@@ -52,7 +52,7 @@ Once installed, the Django template LSP server is accessible via the following c
 
 ## Data Collection Method
 
-The Django Template Language Server collects project data by executing a script in the following order:
+The Django Template LSP Server collects project data by executing a script in the following order:
 
 1. **Virtual Environment**:
     - Checks for a virtual environment in the root directory within one of these folders: `env`, `.env`, `venv`, or `.venv`.
