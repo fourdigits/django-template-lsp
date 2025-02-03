@@ -444,7 +444,9 @@ class TemplateParser:
         )
 
     def get_template_definition(self, line, character, match: Match):
-        if match_after := re.match(r'^(.*)".*', self.document.lines[line][character:]):
+        if match_after := re.match(
+            r"""^(.*)('|").*""", self.document.lines[line][character:]
+        ):
             template_name = match.group(3) + match_after.group(1)
             logger.debug(f"Find template goto definition for: {template_name}")
             if template := self.workspace_index.templates.get(template_name):
