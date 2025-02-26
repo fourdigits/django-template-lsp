@@ -106,11 +106,9 @@ In your lspconfig add the following
 require'lspconfig'.djlsp.setup{
     cmd = { "<path-to-djlsp>" },
     init_options = {
-        djlsp = {
-            django_settings_module = "<your.settings.module>"
-            docker_compose_file = "docker-compose.yml",
-            docker_compose_service = "django"
-        }
+        django_settings_module = "<your.settings.module>",
+        docker_compose_file = "docker-compose.yml",
+        docker_compose_service = "django"
     }
 }
 ```
