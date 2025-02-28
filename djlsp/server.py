@@ -380,6 +380,7 @@ def goto_definition(ls: DjangoTemplateLanguageServer, params: DefinitionParams):
         return None
 
 
+@server.thread()
 @server.feature(WORKSPACE_DID_CHANGE_WATCHED_FILES)
 def files_changed(
     ls: DjangoTemplateLanguageServer, params: DidChangeWatchedFilesParams
