@@ -1,0 +1,11 @@
+.blog .item {
+  color: red;
+}
+
+.border-red-solid {
+  border: 1px solid red;
+}
+
+.border_blue-solid {
+  border: 1px solid blue;
+}
