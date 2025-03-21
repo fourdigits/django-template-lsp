@@ -130,6 +130,22 @@ class TemplateParser:
 
         return jedi.Script(code="\n".join(script_lines), project=self.jedi_project)
 
+    def _jedi_type_to_completion_kind(self, comp_type: str):
+        """Map Jedi completion types to LSP CompletionItemKind."""
+        # https://jedi.readthedocs.io/en/latest/docs/api-classes.html#jedi.api.classes.BaseName.type
+        kind_mapping = {
+            "class": CompletionItemKind.Class,
+            "function": CompletionItemKind.Function,
+            "instance": CompletionItemKind.Variable,
+            "keyword": CompletionItemKind.Keyword,
+            "module": CompletionItemKind.Module,
+            "param": CompletionItemKind.Variable,
+            "path": CompletionItemKind.File,
+            "property": CompletionItemKind.Property,
+            "statement": CompletionItemKind.Variable,
+        }
+        return kind_mapping.get(comp_type, CompletionItemKind.Field)
+
     ###################################################################################
     # Completions
     ###################################################################################
@@ -347,7 +363,9 @@ class TemplateParser:
             code = f"import {prefix}"
 
         return [
-            CompletionItem(label=comp.name, kind=CompletionItemKind.Class)
+            CompletionItem(
+                label=comp.name, kind=self._jedi_type_to_completion_kind(comp.type)
+            )
             for comp in self.create_jedi_script(code).complete()
         ]
 
@@ -359,20 +377,13 @@ class TemplateParser:
             type_sort = {"statement": "1", "property": "2"}.get(comp.type, "9")
             return f"{type_sort}-{comp.name}".lower()
 
-        def _get_completion_kind(comp_type):
-            kind_mapping = {
-                "property": CompletionItemKind.Property,
-                "function": CompletionItemKind.Method,
-            }
-            return kind_mapping.get(comp_type, CompletionItemKind.Field)
-
         if "." in prefix:
             # Find . completions with Jedi
             return [
                 CompletionItem(
                     label=comp.name,
                     sort_text=get_sort_text(comp),
-                    kind=_get_completion_kind(comp.type),
+                    kind=self._jedi_type_to_completion_kind(comp.type),
                 )
                 for comp in self.create_jedi_script(prefix).complete()
                 if not comp.name.startswith("_")

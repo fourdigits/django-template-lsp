@@ -81,7 +81,7 @@ def test_context_string_method_completions():
     ]
 
     for method in methods:
-        assert method.kind == CompletionItemKind.Method
+        assert method.kind == CompletionItemKind.Function
 
 
 def test_context_field_completions():
