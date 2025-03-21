@@ -136,7 +136,7 @@ Locally install the package
 make develop
 ```
 
-Point neovim's `djlsp` to locally installed copy
+Point neovim's `djlsp` to the locally installed copy
 
 ``` lua
 require("lspconfig").djlsp.setup({
@@ -144,4 +144,3 @@ require("lspconfig").djlsp.setup({
         root_dir = require("lspconfig.util").root_pattern("manage.py", ".git"),
 })
 ```
-
