@@ -135,7 +135,6 @@ class TemplateParser:
         # https://jedi.readthedocs.io/en/latest/docs/api-classes.html#jedi.api.classes.BaseName.type
         kind_mapping = {
             "class": CompletionItemKind.Class,
-            "function": CompletionItemKind.Function,
             "instance": CompletionItemKind.Variable,
             "keyword": CompletionItemKind.Keyword,
             "module": CompletionItemKind.Module,
@@ -143,6 +142,7 @@ class TemplateParser:
             "path": CompletionItemKind.File,
             "property": CompletionItemKind.Property,
             "statement": CompletionItemKind.Variable,
+            "function": CompletionItemKind.Method,
         }
         return kind_mapping.get(comp_type, CompletionItemKind.Field)
 
