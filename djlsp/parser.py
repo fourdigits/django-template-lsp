@@ -130,7 +130,7 @@ class TemplateParser:
 
         return jedi.Script(code="\n".join(script_lines), project=self.jedi_project)
 
-    def _jedi_type_to_completion_kind(self, comp_type: str):
+    def _jedi_type_to_completion_kind(self, comp_type: str) -> CompletionItemKind:
         """Map Jedi completion types to LSP CompletionItemKind."""
         # https://jedi.readthedocs.io/en/latest/docs/api-classes.html#jedi.api.classes.BaseName.type
         kind_mapping = {
