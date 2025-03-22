@@ -25,7 +25,7 @@ from tests.test_parser import create_parser
         (
             "{# type customer: django.db.models.Model #}\n{{ customer.sav",
             1,
-            CompletionItemKind.Method,
+            CompletionItemKind.Function,
         ),
         (
             "{# type customer: django.db.models.Model #}\n{{ customer.objec",

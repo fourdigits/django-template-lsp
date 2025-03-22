@@ -142,7 +142,7 @@ class TemplateParser:
             "path": CompletionItemKind.File,
             "property": CompletionItemKind.Property,
             "statement": CompletionItemKind.Variable,
-            "function": CompletionItemKind.Method,
+            "function": CompletionItemKind.Function,
         }
         return kind_mapping.get(comp_type, CompletionItemKind.Field)
 
