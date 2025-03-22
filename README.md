@@ -127,3 +127,20 @@ To start the Helix editor with the environment activated and the correct workspa
 ```bash
 make helix
 ```
+
+### neovim
+
+Locally install the package
+
+``` sh
+make develop
+```
+
+Point neovim's `djlsp` to the locally installed copy
+
+``` lua
+require("lspconfig").djlsp.setup({
+        cmd = { "/path/to/django-template-lsp/.venv/bin/djlsp" },
+        root_dir = require("lspconfig.util").root_pattern("manage.py", ".git"),
+})
+```

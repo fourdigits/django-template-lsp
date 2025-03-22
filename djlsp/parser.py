@@ -5,7 +5,14 @@ from re import Match
 from textwrap import dedent
 
 import jedi
-from lsprotocol.types import CompletionItem, Hover, Location, Position, Range
+from lsprotocol.types import (
+    CompletionItem,
+    CompletionItemKind,
+    Hover,
+    Location,
+    Position,
+    Range,
+)
 from pygls.workspace import TextDocument
 
 from djlsp.constants import BUILTIN
@@ -123,6 +130,22 @@ class TemplateParser:
 
         return jedi.Script(code="\n".join(script_lines), project=self.jedi_project)
 
+    def _jedi_type_to_completion_kind(self, comp_type: str) -> CompletionItemKind:
+        """Map Jedi completion types to LSP CompletionItemKind."""
+        # https://jedi.readthedocs.io/en/latest/docs/api-classes.html#jedi.api.classes.BaseName.type
+        kind_mapping = {
+            "class": CompletionItemKind.Class,
+            "instance": CompletionItemKind.Variable,
+            "keyword": CompletionItemKind.Keyword,
+            "module": CompletionItemKind.Module,
+            "param": CompletionItemKind.Variable,
+            "path": CompletionItemKind.File,
+            "property": CompletionItemKind.Property,
+            "statement": CompletionItemKind.Variable,
+            "function": CompletionItemKind.Function,
+        }
+        return kind_mapping.get(comp_type, CompletionItemKind.Field)
+
     ###################################################################################
     # Completions
     ###################################################################################
@@ -174,7 +197,7 @@ class TemplateParser:
         prefix = match.group(1).split(" ")[-1]
         logger.debug(f"Find load matches for: {prefix}")
         return [
-            CompletionItem(label=lib)
+            CompletionItem(label=lib, kind=CompletionItemKind.Module)
             for lib in self.workspace_index.libraries.keys()
             if lib != BUILTIN and lib.startswith(prefix)
         ]
@@ -195,7 +218,7 @@ class TemplateParser:
                 used_block_names.extend(matches)
 
         return [
-            CompletionItem(label=name)
+            CompletionItem(label=name, kind=CompletionItemKind.Property)
             for name in block_names
             if name not in used_block_names and name.startswith(prefix)
         ]
@@ -214,6 +237,7 @@ class TemplateParser:
                         CompletionItem(
                             label=name,
                             sort_text=f"{999 - len(items)}: {name}",
+                            kind=CompletionItemKind.Property,
                         ),
                     )
         return [item for item in items.values() if item.label.startswith(prefix)]
@@ -235,7 +259,7 @@ class TemplateParser:
         prefix = match.group(2)
         logger.debug(f"Find static matches for: {prefix}")
         return [
-            CompletionItem(label=static_file)
+            CompletionItem(label=static_file, kind=CompletionItemKind.File)
             for static_file in self.workspace_index.static_files
             if static_file.startswith(prefix)
         ]
@@ -244,7 +268,11 @@ class TemplateParser:
         prefix = match.group(2)
         logger.debug(f"Find url matches for: {prefix}")
         return [
-            CompletionItem(label=url.name, documentation=url.docs)
+            CompletionItem(
+                label=url.name,
+                documentation=url.docs,
+                kind=CompletionItemKind.Reference,
+            )
             for url in self.workspace_index.urls.values()
             if url.name.startswith(prefix)
         ]
@@ -253,7 +281,7 @@ class TemplateParser:
         prefix = match.group(3)
         logger.debug(f"Find {match.group(1)} matches for: {prefix}")
         return [
-            CompletionItem(label=template)
+            CompletionItem(label=template, kind=CompletionItemKind.File)
             for template in self.workspace_index.templates
             if template.startswith(prefix)
         ]
@@ -284,6 +312,7 @@ class TemplateParser:
                 label=tag.name,
                 documentation=tag.docs,
                 sort_text=f"999: {tag.name}",
+                kind=CompletionItemKind.Keyword,
             )
 
         # Add all inner/closing tags
@@ -291,7 +320,11 @@ class TemplateParser:
             for tag_name in filter(None, [*tag.inner_tags, tag.closing_tag]):
                 tags.setdefault(
                     tag_name,
-                    CompletionItem(label=tag_name, sort_text=f"{index}: {tag_name}"),
+                    CompletionItem(
+                        label=tag_name,
+                        sort_text=f"{index}: {tag_name}",
+                        kind=CompletionItemKind.Keyword,
+                    ),
                 )
 
         return [tag for tag in tags.values() if tag.label.startswith(prefix)]
@@ -307,6 +340,7 @@ class TemplateParser:
                         CompletionItem(
                             label=filt.name,
                             documentation=filt.docs,
+                            kind=CompletionItemKind.Function,
                         )
                         for filt in lib.filters.values()
                     ]
@@ -329,7 +363,9 @@ class TemplateParser:
             code = f"import {prefix}"
 
         return [
-            CompletionItem(label=comp.name)
+            CompletionItem(
+                label=comp.name, kind=self._jedi_type_to_completion_kind(comp.type)
+            )
             for comp in self.create_jedi_script(code).complete()
         ]
 
@@ -344,14 +380,20 @@ class TemplateParser:
         if "." in prefix:
             # Find . completions with Jedi
             return [
-                CompletionItem(label=comp.name, sort_text=get_sort_text(comp))
+                CompletionItem(
+                    label=comp.name,
+                    sort_text=get_sort_text(comp),
+                    kind=self._jedi_type_to_completion_kind(comp.type),
+                )
                 for comp in self.create_jedi_script(prefix).complete()
                 if not comp.name.startswith("_")
             ]
         else:
             # Only context completions
             return [
-                CompletionItem(label=var, sort_text=var.lower())
+                CompletionItem(
+                    label=var, sort_text=var.lower(), kind=CompletionItemKind.Variable
+                )
                 for var in self.context
                 if var.startswith(prefix)
             ]
