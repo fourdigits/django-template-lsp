@@ -10,6 +10,8 @@ from lsprotocol.types import (
     CompletionItemKind,
     Hover,
     Location,
+    MarkupContent,
+    MarkupKind,
     Position,
     Range,
 )
@@ -270,7 +272,7 @@ class TemplateParser:
         return [
             CompletionItem(
                 label=url.name,
-                documentation=url.docs,
+                documentation=MarkupContent(MarkupKind.Markdown, url.docs),
                 kind=CompletionItemKind.Reference,
             )
             for url in self.workspace_index.urls.values()
@@ -310,7 +312,7 @@ class TemplateParser:
         for tag in available_tags.values():
             tags[tag.name] = CompletionItem(
                 label=tag.name,
-                documentation=tag.docs,
+                documentation=MarkupContent(MarkupKind.Markdown, tag.docs),
                 sort_text=f"999: {tag.name}",
                 kind=CompletionItemKind.Keyword,
             )
@@ -339,7 +341,7 @@ class TemplateParser:
                     [
                         CompletionItem(
                             label=filt.name,
-                            documentation=filt.docs,
+                            documentation=MarkupContent(MarkupKind.Markdown, filt.docs),
                             kind=CompletionItemKind.Function,
                         )
                         for filt in lib.filters.values()
