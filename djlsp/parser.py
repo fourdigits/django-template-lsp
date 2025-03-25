@@ -386,6 +386,7 @@ class TemplateParser:
                     label=comp.name,
                     sort_text=get_sort_text(comp),
                     kind=self._jedi_type_to_completion_kind(comp.type),
+                    documentation=MarkupContent(MarkupKind.Markdown, comp.docstring()),
                 )
                 for comp in self.create_jedi_script(prefix).complete()
                 if not comp.name.startswith("_")
