@@ -625,9 +625,13 @@ if __name__ == "__main__":
         handlers=[logging.StreamHandler(sys.stderr)],
     )
 
+    # redirect stdout to stderr when loading the django application, so that only the collected json gets printed to stdout
+    stdout = sys.stdout
+    sys.stdout = sys.stderr
+
     django.setup()
 
     collector = DjangoIndexCollector(project_src_path)
     collector.collect()
 
-    print(collector.to_json())
+    print(collector.to_json(), file=stdout)
