@@ -410,6 +410,10 @@ class TemplateParser:
             (re.compile(r""".*{% ?url ('|")([\w\-:]*)$"""), self.get_url_hover),
             (re.compile(r"^.*({%|{{) ?[\w \.\|]*\|(\w*)$"), self.get_filter_hover),
             (re.compile(r"^.*{% ?(\w*)$"), self.get_tag_hover),
+            (
+                re.compile(r".*({{|{% \w+ ).*?([\w\d_\.]*)$"),
+                self.get_context_hover,
+            ),
         ]
         for regex, hover in matchers:
             if match := regex.match(line_fragment):
@@ -444,6 +448,17 @@ class TemplateParser:
                 return Hover(
                     contents=lib.tags[tag_name].docs,
                 )
+        return None
+
+    def get_context_hover(self, line, character, match: Match):
+        context_name = self._get_full_hover_name(line, character, match.group(2))
+        logger.debug(f"Find context hover for: {context_name}")
+
+        if len(docs := self.create_jedi_script(context_name).help()) > 0:
+            return Hover(
+                contents=MarkupContent(MarkupKind.Markdown, "\n\n---\n\n".join(doc.docstring() for doc in docs))
+            )
+
         return None
 
     def _get_full_hover_name(self, line, character, first_part, regex=r"^([\w\d]+).*"):
