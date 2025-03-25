@@ -454,9 +454,10 @@ class TemplateParser:
         context_name = self._get_full_hover_name(line, character, match.group(2))
         logger.debug(f"Find context hover for: {context_name}")
 
-        if len(docs := self.create_jedi_script(context_name).help()) > 0:
+        docs = list(doc_str for d in self.create_jedi_script(context_name).help() if (doc_str := d.docstring()))
+        if len(docs) > 0:
             return Hover(
-                contents=MarkupContent(MarkupKind.Markdown, "\n\n---\n\n".join(doc.docstring() for doc in docs))
+                contents=MarkupContent(MarkupKind.Markdown, "\n\n---\n\n".join(docs))
             )
 
         return None
