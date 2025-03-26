@@ -20,6 +20,8 @@ from djlsp.index import WorkspaceIndex
 
 logger = logging.getLogger(__name__)
 
+RE_TAGS_NO_CONTEXT = re.compile(r"{% ?(end.*|comment|csrf_token|debug|spaceless)")
+
 
 class TemplateParser:
 
@@ -372,6 +374,9 @@ class TemplateParser:
     def get_context_completions(self, match: Match, **kwargs):
         prefix = match.group(2)
         logger.debug(f"Find context matches for: {prefix}")
+
+        if RE_TAGS_NO_CONTEXT.match(match.group(1)):
+            return []
 
         def get_sort_text(comp):
             type_sort = {"statement": "1", "property": "2"}.get(comp.type, "9")

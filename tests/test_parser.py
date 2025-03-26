@@ -164,6 +164,22 @@ def test_completion_context():
     assert any(item.label == "blog" for item in parser.completions(0, 5))
 
 
+@pytest.mark.parametrize(
+    "content,results",
+    [
+        ("{% if ", True),
+        ("{% endif ", False),
+        ("{% comment ", False),
+        ("{% csrf_token ", False),
+        ("{% debug ", False),
+        ("{% spaceless ", False),
+    ],
+)
+def test_no_completion_context_for_some_tags(content, results):
+    parser = create_parser(content)
+    assert bool(parser.completions(0, len(content))) is results
+
+
 def test_completion_context_based_type_hint_comment():
     parser = create_parser("{# type news: str #}\n{{ news.cap")
     assert any(item.label == "news" for item in parser.completions(1, 5))
