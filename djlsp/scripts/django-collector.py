@@ -625,7 +625,8 @@ if __name__ == "__main__":
         handlers=[logging.StreamHandler(sys.stderr)],
     )
 
-    # redirect stdout to stderr when loading the django application, so that only the collected json gets printed to stdout
+    # redirect stdout to stderr when loading the django application,
+    # so that only the collected json gets printed to stdout
     stdout = sys.stdout
     sys.stdout = sys.stderr
 

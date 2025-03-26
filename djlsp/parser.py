@@ -457,14 +457,21 @@ class TemplateParser:
         context_name = self._get_full_hover_name(line, character, match.group(2))
         logger.debug(f"Find context hover for: {context_name}")
 
-        docs = []
-        for hlp in self.create_jedi_script(context_name).help():
-            inf = hlp.infer()
-            docs.append(f"({hlp.type}) {hlp.name}: {inf[0].name if inf else 'Any'}\n\n{hlp.docstring()}")
+        if "." in context_name:
+            hlp = self.create_jedi_script(context_name).help()
+            symbol_name = hlp[0].name if hlp else None
+        else:
+            if context_name not in self.context:
+                return None
+            hlp = self.create_jedi_script(self.context.get(context_name)).help()
+            symbol_name = context_name
 
-        if len(docs) > 0:
+        if hlp:
             return Hover(
-                contents="\n\n---\n\n".join(docs)
+                contents=(
+                    f"({hlp[0].type}) {symbol_name}: {hlp[0].get_type_hint()}"
+                    f"\n\n{hlp[0].docstring()}"
+                ),
             )
 
         return None
