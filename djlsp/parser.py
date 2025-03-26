@@ -10,8 +10,6 @@ from lsprotocol.types import (
     CompletionItemKind,
     Hover,
     Location,
-    MarkupContent,
-    MarkupKind,
     Position,
     Range,
 )
@@ -272,7 +270,7 @@ class TemplateParser:
         return [
             CompletionItem(
                 label=url.name,
-                documentation=MarkupContent(MarkupKind.Markdown, url.docs),
+                documentation=url.docs,
                 kind=CompletionItemKind.Reference,
             )
             for url in self.workspace_index.urls.values()
@@ -312,7 +310,7 @@ class TemplateParser:
         for tag in available_tags.values():
             tags[tag.name] = CompletionItem(
                 label=tag.name,
-                documentation=MarkupContent(MarkupKind.Markdown, tag.docs),
+                documentation=tag.docs,
                 sort_text=f"999: {tag.name}",
                 kind=CompletionItemKind.Keyword,
             )
@@ -341,7 +339,7 @@ class TemplateParser:
                     [
                         CompletionItem(
                             label=filt.name,
-                            documentation=MarkupContent(MarkupKind.Markdown, filt.docs),
+                            documentation=filt.docs,
                             kind=CompletionItemKind.Function,
                         )
                         for filt in lib.filters.values()
@@ -386,7 +384,7 @@ class TemplateParser:
                     label=comp.name,
                     sort_text=get_sort_text(comp),
                     kind=self._jedi_type_to_completion_kind(comp.type),
-                    documentation=MarkupContent(MarkupKind.Markdown, comp.docstring()),
+                    documentation=comp.docstring(),
                 )
                 for comp in self.create_jedi_script(prefix).complete()
                 if not comp.name.startswith("_")
@@ -454,10 +452,14 @@ class TemplateParser:
         context_name = self._get_full_hover_name(line, character, match.group(2))
         logger.debug(f"Find context hover for: {context_name}")
 
-        docs = list(doc_str for d in self.create_jedi_script(context_name).help() if (doc_str := d.docstring()))
+        docs = []
+        for hlp in self.create_jedi_script(context_name).help():
+            inf = hlp.infer()
+            docs.append(f"({hlp.type}) {hlp.name}: {inf[0].name if inf else 'Any'}\n\n{hlp.docstring()}")
+
         if len(docs) > 0:
             return Hover(
-                contents=MarkupContent(MarkupKind.Markdown, "\n\n---\n\n".join(docs))
+                contents="\n\n---\n\n".join(docs)
             )
 
         return None
