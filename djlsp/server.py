@@ -159,8 +159,9 @@ class DjangoTemplateLanguageServer(LanguageServer):
             path=self.project_src_path, environment_path=self.project_env_path
         )
 
+        loaded_from_cache = False
         if self.cache and (django_data := self._get_django_data_from_cache()):
-            pass
+            loaded_from_cache = True
         elif self.project_env_path:
             django_data = self._get_django_data_from_python_path(
                 os.path.join(self.project_env_path, "bin", "python")
@@ -201,7 +202,7 @@ class DjangoTemplateLanguageServer(LanguageServer):
             self.current_file_watcher_globs = self.workspace_index.file_watcher_globs
             self.set_file_watcher_capability()
 
-        if self.cache:
+        if self.cache and not loaded_from_cache:
             self._store_django_data_to_cache(django_data)
 
     def _get_django_data_from_cache(self):
