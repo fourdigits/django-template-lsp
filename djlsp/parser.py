@@ -389,6 +389,7 @@ class TemplateParser:
                     label=comp.name,
                     sort_text=get_sort_text(comp),
                     kind=self._jedi_type_to_completion_kind(comp.type),
+                    documentation=comp.docstring(),
                 )
                 for comp in self.create_jedi_script(prefix).complete()
                 if not comp.name.startswith("_")
@@ -412,6 +413,10 @@ class TemplateParser:
             (re.compile(r""".*{% ?url ('|")([\w\-:]*)$"""), self.get_url_hover),
             (re.compile(r"^.*({%|{{) ?[\w \.\|]*\|(\w*)$"), self.get_filter_hover),
             (re.compile(r"^.*{% ?(\w*)$"), self.get_tag_hover),
+            (
+                re.compile(r".*({{|{% \w+ ).*?([\w\d_\.]*)$"),
+                self.get_context_hover,
+            ),
         ]
         for regex, hover in matchers:
             if match := regex.match(line_fragment):
@@ -446,6 +451,29 @@ class TemplateParser:
                 return Hover(
                     contents=lib.tags[tag_name].docs,
                 )
+        return None
+
+    def get_context_hover(self, line, character, match: Match):
+        context_name = self._get_full_hover_name(line, character, match.group(2))
+        logger.debug(f"Find context hover for: {context_name}")
+
+        if "." in context_name:
+            hlp = self.create_jedi_script(context_name).help()
+            symbol_name = hlp[0].name if hlp else None
+        else:
+            if context_name not in self.context:
+                return None
+            hlp = self.create_jedi_script(self.context.get(context_name)).help()
+            symbol_name = context_name
+
+        if hlp:
+            return Hover(
+                contents=(
+                    f"({hlp[0].type}) {symbol_name}: {hlp[0].get_type_hint()}"
+                    f"\n\n{hlp[0].docstring()}"
+                ),
+            )
+
         return None
 
     def _get_full_hover_name(self, line, character, first_part, regex=r"^([\w\d]+).*"):

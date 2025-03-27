@@ -210,6 +210,13 @@ def test_hover_tag():
     assert hover.contents == "Retrieve the homepage."
 
 
+def test_hover_context():
+    parser = create_parser("{# type news: str #}\n{{ news }}")
+    hover = parser.hover(1, 4)
+    assert hover is not None
+    assert hover.contents.startswith("(class) news: Type[str]\n\nstr(o: object=...)")
+
+
 ###################################################################################
 # Goto Definitions
 ###################################################################################
