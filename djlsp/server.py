@@ -252,6 +252,7 @@ class DjangoTemplateLanguageServer(LanguageServer):
 
         h = hashlib.md5()
         for f in sorted(files):
+            f = os.path.join(self.workspace.root_path, f)
             if os.path.isfile(f):
                 h.update(f"{os.stat(f).st_mtime}".encode())
 
