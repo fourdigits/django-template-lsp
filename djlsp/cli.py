@@ -47,6 +47,12 @@ def main():
         default=False,
         help="Use cache for Django data collection (optional provide a filepath)",
     )
+    parser.add_argument(
+        "--custom-collector-module",
+        action="store",
+        type=str,
+        help="Provide a python path to a function that is used to collect custom data",
+    )
 
     args = parser.parse_args()
 
@@ -55,6 +61,7 @@ def main():
         "docker_compose_service": args.docker_compose_service,
         "django_settings_module": args.django_settings_module,
         "cache": args.cache,
+        "custom_collector_module": args.custom_collector_module,
     }
 
     if args.collect:
