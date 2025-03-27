@@ -63,6 +63,7 @@ class DjangoTemplateLanguageServer(LanguageServer):
         self.docker_compose_service = "django"
         self.django_settings_module = ""
         self.cache = False
+        self.custom_collector_module = None
         self.workspace_index = WorkspaceIndex()
         self.workspace_index.update(FALLBACK_DJANGO_DATA)
         self.jedi_project = jedi.Project(".")
@@ -100,6 +101,9 @@ class DjangoTemplateLanguageServer(LanguageServer):
             "django_settings_module", self.django_settings_module
         )
         self.cache = options.get("cache", self.cache)
+        self.custom_collector_module = options.get(
+            "custom_collector_module", self.custom_collector_module
+        )
 
     def check_version(self):
         try:
@@ -242,7 +246,7 @@ class DjangoTemplateLanguageServer(LanguageServer):
         files = set(
             f
             for p in django_data["file_watcher_globs"]
-            for f in glob.glob(p, recursive=True)
+            for f in glob.glob(p, root_dir=self.workspace.root_path, recursive=True)
         )
         files.add(DJANGO_COLLECTOR_SCRIPT_PATH)
 
@@ -276,6 +280,11 @@ class DjangoTemplateLanguageServer(LanguageServer):
                         else None
                     ),
                     f"--project-src={self.project_src_path}",
+                    (
+                        f"--custom-collector-module={self.custom_collector_module}"  # noqa: E501
+                        if self.custom_collector_module
+                        else None
+                    ),
                 ],
             )
         )
@@ -333,6 +342,11 @@ class DjangoTemplateLanguageServer(LanguageServer):
                         else None
                     ),
                     "--project-src=/src",
+                    (
+                        f"--custom-collector-module={self.custom_collector_module}"  # noqa: E501
+                        if self.custom_collector_module
+                        else None
+                    ),
                 ],
             )
         )

@@ -602,6 +602,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--django-settings-module", action="store", type=str)
     parser.add_argument("--project-src", action="store", type=str)
+    parser.add_argument("--custom-collector-module", action="store", type=str)
     args = parser.parse_args()
 
     project_src_path = args.project_src if args.project_src else os.getcwd()
@@ -634,5 +635,10 @@ if __name__ == "__main__":
 
     collector = DjangoIndexCollector(project_src_path)
     collector.collect()
+
+    if args.custom_collector_module:
+        module, func = args.custom_collector_module.rsplit(".", 1)
+        custom_collector = importlib.import_module(module)
+        getattr(custom_collector, func)(collector)
 
     print(collector.to_json(), file=stdout)
