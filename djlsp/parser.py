@@ -209,10 +209,9 @@ class TemplateParser:
         logger.debug(f"Find block matches for: {prefix}")
         block_names = []
         re_extends = re.compile(r""".*{% ?extends ['"](.*)['"] ?%}.*""")
-        for line in self.document.lines:
-            if matches := re_extends.match(line):
-                logger.debug(f"Finding available block names for {matches.group(1)}")
-                block_names = self._recursive_block_names(matches.group(1))
+        if m := re_extends.search(self.document.source):
+            logger.debug(f"Finding available block names for {m.group(1)}")
+            block_names = self._recursive_block_names(m.group(1))
 
         used_block_names = []
         re_block = re.compile(r"{% *block ([\w]*) *%}")
