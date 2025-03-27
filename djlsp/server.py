@@ -1,3 +1,5 @@
+import glob
+import hashlib
 import http.client
 import json
 import logging
@@ -6,8 +8,6 @@ import shutil
 import subprocess
 import tempfile
 import uuid
-import hashlib
-import glob
 from functools import cached_property
 
 import jedi
@@ -210,25 +210,31 @@ class DjangoTemplateLanguageServer(LanguageServer):
             logger.debug(f"Found cachefile: {self.cache}")
             with open(self.cache, "r") as f:
                 django_data = json.load(f)
-            
+
             current_hash = self._get_cache_file_hash(django_data)
             if django_data.get("_hash", None) == current_hash:
                 logger.info(f"Loaded collected data from cachefile: {self.cache}")
                 return django_data
             else:
-                logger.debug(f"Cachefile hash does not match {current_hash} != {django_data.get('_hash', None)}")
+                logger.debug(
+                    f"Cachefile hash does not match {current_hash} != {django_data.get('_hash', None)}"
+                )
 
         return None
 
     def _store_django_data_to_cache(self, django_data):
-        django_data['_hash'] = self._get_cache_file_hash(django_data)
+        django_data["_hash"] = self._get_cache_file_hash(django_data)
 
         with open(self.cache, "w") as f:
             json.dump(django_data, f)
             logger.info(f"Wrote collected data to cachefile: {self.cache}")
 
     def _get_cache_file_hash(self, django_data):
-        files = set(f for p in django_data['file_watcher_globs'] for f in glob.glob(p, recursive=True))
+        files = set(
+            f
+            for p in django_data["file_watcher_globs"]
+            for f in glob.glob(p, recursive=True)
+        )
 
         sha256 = hashlib.sha256()
         for f in sorted(files):

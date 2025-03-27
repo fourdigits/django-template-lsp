@@ -45,7 +45,7 @@ def main():
         nargs="?",
         const=True,
         default=False,
-        help="Use cache for Django data collection (optional provide a filepath)"
+        help="Use cache for Django data collection (optional provide a filepath)",
     )
 
     args = parser.parse_args()
