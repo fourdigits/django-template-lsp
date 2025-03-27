@@ -208,10 +208,11 @@ class TemplateParser:
         prefix = match.group(1).strip()
         logger.debug(f"Find block matches for: {prefix}")
         block_names = []
-        if "/templates/" in self.document.path:
-            template_name = self.document.path.split("/templates/", 1)[1]
-            if template := self.workspace_index.templates.get(template_name):
-                block_names = self._recursive_block_names(template.extends)
+        re_extends = re.compile(r""".*{% ?extends ['"](.*)['"] ?%}.*""")
+        for line in self.document.lines:
+            if matches := re_extends.match(line):
+                logger.debug(f"Finding available block names for {matches.group(1)}")
+                block_names = self._recursive_block_names(matches.group(1))
 
         used_block_names = []
         re_block = re.compile(r"{% *block ([\w]*) *%}")
