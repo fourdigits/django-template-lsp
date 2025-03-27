@@ -201,7 +201,7 @@ class DjangoTemplateLanguageServer(LanguageServer):
             self.current_file_watcher_globs = self.workspace_index.file_watcher_globs
             self.set_file_watcher_capability()
 
-        if self.cache and not loaded_from_cache:
+        if self.cache and not loaded_from_cache and django_data:
             self._store_django_data_to_cache(django_data)
 
     def _get_django_data_from_cache(self):
