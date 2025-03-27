@@ -244,6 +244,7 @@ class DjangoTemplateLanguageServer(LanguageServer):
             for p in django_data["file_watcher_globs"]
             for f in glob.glob(p, recursive=True)
         )
+        files.add(DJANGO_COLLECTOR_SCRIPT_PATH)
 
         h = hashlib.md5()
         for f in sorted(files):
