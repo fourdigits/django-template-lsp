@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 import uuid
 from functools import cached_property
 
@@ -99,8 +100,6 @@ class DjangoTemplateLanguageServer(LanguageServer):
             "django_settings_module", self.django_settings_module
         )
         self.cache = options.get("cache", self.cache)
-        if self.cache is True:
-            self.cache = os.path.join(tempfile.gettempdir(), "djlsp-data.json")
 
     def check_version(self):
         try:
@@ -206,42 +205,64 @@ class DjangoTemplateLanguageServer(LanguageServer):
             self._store_django_data_to_cache(django_data)
 
     def _get_django_data_from_cache(self):
-        if os.path.isfile(self.cache):
-            logger.debug(f"Found cachefile: {self.cache}")
-            with open(self.cache, "r") as f:
+        cache_path = self._get_cache_location()
+        if not os.path.isfile(cache_path):
+            return None
+
+        logger.debug(f"Found cachefile: {cache_path}")
+        try:
+            with open(cache_path, "r") as f:
                 django_data = json.load(f)
+        except Exception:
+            logger.warning(f"Cannot read cachefile: {cache_path}", exc_info=True)
+            return None
 
-            current_hash = self._get_cache_file_hash(django_data)
-            if django_data.get("_hash", None) == current_hash:
-                logger.info(f"Loaded collected data from cachefile: {self.cache}")
-                return django_data
-            else:
-                logger.debug(
-                    f"Cachefile hash does not match {current_hash} != {django_data.get('_hash', None)}"
-                )
-
-        return None
+        prev_hash = django_data.get("_hash", None)
+        current_hash = self._get_cache_file_hash(django_data)
+        if prev_hash == current_hash:
+            logger.info(f"Loaded collected data from cachefile: {cache_path}")
+            return django_data
+        else:
+            logger.debug(f"Cachefile hash does not match {current_hash} != {prev_hash}")
 
     def _store_django_data_to_cache(self, django_data):
         django_data["_hash"] = self._get_cache_file_hash(django_data)
 
-        with open(self.cache, "w") as f:
-            json.dump(django_data, f)
-            logger.info(f"Wrote collected data to cachefile: {self.cache}")
+        cache_path = self._get_cache_location()
+        try:
+            with open(cache_path, "w") as f:
+                json.dump(django_data, f)
+                logger.info(f"Wrote collected data to cachefile: {cache_path}")
+        except Exception:
+            logger.warning(f"Cannot write cachefile: {cache_path}", exc_info=True)
 
     def _get_cache_file_hash(self, django_data):
+        start_time = time.time()
+
         files = set(
             f
             for p in django_data["file_watcher_globs"]
             for f in glob.glob(p, recursive=True)
         )
 
-        sha256 = hashlib.sha256()
+        h = hashlib.md5()
         for f in sorted(files):
             if os.path.isfile(f):
-                sha256.update(f"{os.stat(f).st_mtime}".encode())
+                h.update(f"{os.stat(f).st_mtime}".encode())
 
-        return sha256.hexdigest()
+        logger.debug(f"Caculating cache hash took {time.time() - start_time:.4f}s")
+
+        return h.hexdigest()
+
+    def _get_cache_location(self):
+        if self.cache is True:
+            h = hashlib.md5()
+            if self.workspace.root_path:
+                h.update(self.workspace.root_path.encode("utf-8"))
+            return os.path.join(
+                tempfile.gettempdir(), f"djlsp-data-{h.hexdigest()}.json"
+            )
+        return self.cache
 
     def _get_django_data_from_python_path(self, python_path):
         logger.info(f"Collection django data from local python path: {python_path}")
