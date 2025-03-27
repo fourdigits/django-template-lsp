@@ -49,6 +49,7 @@ Once installed, the Django template LSP server is accessible via the following c
 - `docker_compose_file` (string) default: "docker-compose.yml"
 - `docker_compose_service` (string) default: "django"
 - `django_settings_module` (string) default (auto detected when empty): ""
+- `cache` (boolean/string) default (either true/false or a filepath to the cachefile): false
 
 ## Data Collection Method
 
@@ -144,3 +145,13 @@ require("lspconfig").djlsp.setup({
         root_dir = require("lspconfig.util").root_pattern("manage.py", ".git"),
 })
 ```
+
+If you want to access the log while developing, add the `--enable-log` flag to the cmd.
+The logfile will be written to a file in your current working directory named `djlsp.log`.
+
+``` lua
+require("lspconfig").djlsp.setup({
+        cmd = { "/path/to/django-template-lsp/.venv/bin/djlsp", "--enable-log" },
+})
+```
+

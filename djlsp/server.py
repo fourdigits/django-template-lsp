@@ -1,9 +1,13 @@
+import glob
+import hashlib
 import http.client
 import json
 import logging
 import os
 import shutil
 import subprocess
+import tempfile
+import time
 import uuid
 from functools import cached_property
 
@@ -58,6 +62,7 @@ class DjangoTemplateLanguageServer(LanguageServer):
         self.docker_compose_file = "docker-compose.yml"
         self.docker_compose_service = "django"
         self.django_settings_module = ""
+        self.cache = False
         self.workspace_index = WorkspaceIndex()
         self.workspace_index.update(FALLBACK_DJANGO_DATA)
         self.jedi_project = jedi.Project(".")
@@ -94,6 +99,7 @@ class DjangoTemplateLanguageServer(LanguageServer):
         self.django_settings_module = options.get(
             "django_settings_module", self.django_settings_module
         )
+        self.cache = options.get("cache", self.cache)
 
     def check_version(self):
         try:
@@ -152,7 +158,10 @@ class DjangoTemplateLanguageServer(LanguageServer):
             path=self.project_src_path, environment_path=self.project_env_path
         )
 
-        if self.project_env_path:
+        loaded_from_cache = False
+        if self.cache and (django_data := self._get_django_data_from_cache()):
+            loaded_from_cache = True
+        elif self.project_env_path:
             django_data = self._get_django_data_from_python_path(
                 os.path.join(self.project_env_path, "bin", "python")
             )
@@ -192,6 +201,66 @@ class DjangoTemplateLanguageServer(LanguageServer):
             self.current_file_watcher_globs = self.workspace_index.file_watcher_globs
             self.set_file_watcher_capability()
 
+        if self.cache and not loaded_from_cache and django_data:
+            self._store_django_data_to_cache(django_data)
+
+    def _get_django_data_from_cache(self):
+        cache_path = self._get_cache_location()
+        if not os.path.isfile(cache_path):
+            return None
+
+        logger.debug(f"Found cachefile: {cache_path}")
+        try:
+            with open(cache_path, "r") as f:
+                django_data = json.load(f)
+        except Exception:
+            logger.warning(f"Cannot read cachefile: {cache_path}", exc_info=True)
+            return None
+
+        prev_hash = django_data.get("_hash", None)
+        current_hash = self._get_cache_file_hash(django_data)
+        if prev_hash == current_hash:
+            logger.info(f"Loaded collected data from cachefile: {cache_path}")
+            return django_data
+        else:
+            logger.debug(f"Cachefile hash does not match {current_hash} != {prev_hash}")
+
+    def _store_django_data_to_cache(self, django_data):
+        django_data["_hash"] = self._get_cache_file_hash(django_data)
+
+        cache_path = self._get_cache_location()
+        try:
+            with open(cache_path, "w") as f:
+                json.dump(django_data, f)
+                logger.info(f"Wrote collected data to cachefile: {cache_path}")
+        except Exception:
+            logger.warning(f"Cannot write cachefile: {cache_path}", exc_info=True)
+
+    def _get_cache_file_hash(self, django_data):
+        start_time = time.time()
+
+        files = set(
+            f
+            for p in django_data["file_watcher_globs"]
+            for f in glob.glob(p, recursive=True)
+        )
+        files.add(DJANGO_COLLECTOR_SCRIPT_PATH)
+
+        h = hashlib.md5()
+        for f in sorted(files):
+            if os.path.isfile(f):
+                h.update(f"{os.stat(f).st_mtime}".encode())
+
+        logger.debug(f"Caculating cache hash took {time.time() - start_time:.4f}s")
+
+        return h.hexdigest()
+
+    def _get_cache_location(self):
+        if self.cache is True and self.workspace.root_path:
+            prefix = hashlib.md5(self.workspace.root_path.encode("utf-8")).hexdigest()
+            return os.path.join(tempfile.gettempdir(), f"djlsp-data-{prefix}.json")
+        return self.cache
+
     def _get_django_data_from_python_path(self, python_path):
         logger.info(f"Collection django data from local python path: {python_path}")
 
@@ -215,8 +284,8 @@ class DjangoTemplateLanguageServer(LanguageServer):
 
         try:
             return json.loads(subprocess.check_output(command).decode())
-        except Exception as e:
-            logger.error("Collector failed with:", e)
+        except Exception:
+            logger.error("Collector failed with:", exc_info=True)
             return False
 
     def _has_valid_docker_service(self):
