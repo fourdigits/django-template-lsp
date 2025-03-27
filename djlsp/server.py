@@ -256,13 +256,9 @@ class DjangoTemplateLanguageServer(LanguageServer):
         return h.hexdigest()
 
     def _get_cache_location(self):
-        if self.cache is True:
-            h = hashlib.md5()
-            if self.workspace.root_path:
-                h.update(self.workspace.root_path.encode("utf-8"))
-            return os.path.join(
-                tempfile.gettempdir(), f"djlsp-data-{h.hexdigest()}.json"
-            )
+        if self.cache is True and self.workspace.root_path:
+            prefix = hashlib.md5(self.workspace.root_path.encode("utf-8")).hexdigest()
+            return os.path.join(tempfile.gettempdir(), f"djlsp-data-{prefix}.json")
         return self.cache
 
     def _get_django_data_from_python_path(self, python_path):
