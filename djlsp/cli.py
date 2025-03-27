@@ -40,6 +40,13 @@ def main():
         action="store_true",
         help="Attempt to collect Django data and display logs.",
     )
+    parser.add_argument(
+        "--cache",
+        nargs="?",
+        const=True,
+        default=False,
+        help="Use cache for Django data collection (optional provide a filepath)"
+    )
 
     args = parser.parse_args()
 
@@ -47,6 +54,7 @@ def main():
         "docker_compose_file": args.docker_compose_file,
         "docker_compose_service": args.docker_compose_service,
         "django_settings_module": args.django_settings_module,
+        "cache": args.cache,
     }
 
     if args.collect:

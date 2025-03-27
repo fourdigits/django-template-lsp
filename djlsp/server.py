@@ -4,7 +4,10 @@ import logging
 import os
 import shutil
 import subprocess
+import tempfile
 import uuid
+import hashlib
+import glob
 from functools import cached_property
 
 import jedi
@@ -58,6 +61,7 @@ class DjangoTemplateLanguageServer(LanguageServer):
         self.docker_compose_file = "docker-compose.yml"
         self.docker_compose_service = "django"
         self.django_settings_module = ""
+        self.cache = False
         self.workspace_index = WorkspaceIndex()
         self.workspace_index.update(FALLBACK_DJANGO_DATA)
         self.jedi_project = jedi.Project(".")
@@ -94,6 +98,9 @@ class DjangoTemplateLanguageServer(LanguageServer):
         self.django_settings_module = options.get(
             "django_settings_module", self.django_settings_module
         )
+        self.cache = options.get("cache", self.cache)
+        if self.cache is True:
+            self.cache = os.path.join(tempfile.gettempdir(), "djlsp-data.json")
 
     def check_version(self):
         try:
@@ -152,7 +159,9 @@ class DjangoTemplateLanguageServer(LanguageServer):
             path=self.project_src_path, environment_path=self.project_env_path
         )
 
-        if self.project_env_path:
+        if self.cache and (django_data := self._get_django_data_from_cache()):
+            pass
+        elif self.project_env_path:
             django_data = self._get_django_data_from_python_path(
                 os.path.join(self.project_env_path, "bin", "python")
             )
@@ -191,6 +200,41 @@ class DjangoTemplateLanguageServer(LanguageServer):
         ):
             self.current_file_watcher_globs = self.workspace_index.file_watcher_globs
             self.set_file_watcher_capability()
+
+        if self.cache:
+            self._store_django_data_to_cache(django_data)
+
+    def _get_django_data_from_cache(self):
+        if os.path.isfile(self.cache):
+            logger.debug(f"Found cachefile: {self.cache}")
+            with open(self.cache, "r") as f:
+                django_data = json.load(f)
+            
+            current_hash = self._get_cache_file_hash(django_data)
+            if django_data.get("_hash", None) == current_hash:
+                logger.info(f"Loaded collected data from cachefile: {self.cache}")
+                return django_data
+            else:
+                logger.debug(f"Cachefile hash does not match {current_hash} != {django_data.get('_hash', None)}")
+
+        return None
+
+    def _store_django_data_to_cache(self, django_data):
+        django_data['_hash'] = self._get_cache_file_hash(django_data)
+
+        with open(self.cache, "w") as f:
+            json.dump(django_data, f)
+            logger.info(f"Wrote collected data to cachefile: {self.cache}")
+
+    def _get_cache_file_hash(self, django_data):
+        files = set(f for p in django_data['file_watcher_globs'] for f in glob.glob(p, recursive=True))
+
+        sha256 = hashlib.sha256()
+        for f in sorted(files):
+            if os.path.isfile(f):
+                sha256.update(f"{os.stat(f).st_mtime}".encode())
+
+        return sha256.hexdigest()
 
     def _get_django_data_from_python_path(self, python_path):
         logger.info(f"Collection django data from local python path: {python_path}")
