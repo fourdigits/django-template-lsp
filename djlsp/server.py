@@ -284,8 +284,8 @@ class DjangoTemplateLanguageServer(LanguageServer):
 
         try:
             return json.loads(subprocess.check_output(command).decode())
-        except Exception as e:
-            logger.error("Collector failed with:", e)
+        except Exception:
+            logger.error("Collector failed with:", exc_info=True)
             return False
 
     def _has_valid_docker_service(self):
