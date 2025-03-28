@@ -1,6 +1,6 @@
+import hashlib
 import logging
 import re
-import hashlib
 from functools import cached_property
 from re import Match
 from textwrap import dedent
@@ -125,8 +125,12 @@ class TemplateParser:
                         continue
 
                     # create import alias to allow variable to have same name as module
-                    import_alias = "__" + hashlib.md5(variable_import.encode()).hexdigest()
-                    variable_type_aliased = variable_type_aliased.replace(variable_import, import_alias)
+                    import_alias = (
+                        "__" + hashlib.md5(variable_import.encode()).hexdigest()
+                    )
+                    variable_type_aliased = variable_type_aliased.replace(
+                        variable_import, import_alias
+                    )
                     script_lines.append(f"import {variable_import} as {import_alias}")
 
                 script_lines.append(f"{variable}: {variable_type_aliased}")
