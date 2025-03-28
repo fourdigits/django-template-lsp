@@ -239,21 +239,41 @@ class DjangoTemplateLanguageServer(LanguageServer):
     def _get_cache_file_hash(self, django_data):
         start_time = time.time()
 
+        patterns = []
+        if self.project_env_path and self.project_env_path.startswith(
+            self.project_src_path
+        ):
+            # Prevent using env directory because this increase the calculation
+            # time by 100x
+            for file_ in os.scandir(self.project_src_path):
+                if file_.is_dir():
+                    full_path = os.path.join(self.project_src_path, file_)
+                    for pattern in django_data.get("file_watcher_globs", []):
+                        if not full_path.startswith(self.project_env_path):
+                            patterns.append(os.path.join(full_path, pattern))
+        else:
+            patterns = list(
+                [
+                    os.path.join(self.project_src_path, pattern)
+                    in django_data.get("file_watcher_globs", [])
+                ]
+            )
+
         files = set(
-            f
-            for p in django_data["file_watcher_globs"]
-            for f in glob.glob(p, recursive=True)
+            file_
+            for pattern in patterns
+            for file_ in glob.iglob(pattern, recursive=True)
         )
         files.add(DJANGO_COLLECTOR_SCRIPT_PATH)
 
-        h = hashlib.md5()
-        for f in sorted(files):
-            if os.path.isfile(f):
-                h.update(f"{os.stat(f).st_mtime}".encode())
+        files_hash = hashlib.blake2b(digest_size=16)
+        for file_path in sorted(files):
+            if "__pycache__" not in full_path and os.path.isfile(file_path):
+                files_hash.update(f"{os.stat(file_path).st_mtime}".encode())
 
         logger.debug(f"Caculating cache hash took {time.time() - start_time:.4f}s")
 
-        return h.hexdigest()
+        return files_hash.hexdigest()
 
     def _get_cache_location(self):
         if self.cache is True and self.workspace.root_path:
