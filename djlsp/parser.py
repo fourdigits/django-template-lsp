@@ -139,6 +139,7 @@ class TemplateParser:
                 script_lines.append(f"{variable} = None")
 
         # Add user code
+        # django uses abc.0 for list index lookup, replace those with abc[0]
         script_lines.append(re.sub(r"(.*?)\.(\d+)", r"\1[\2]", code))
 
         logger.debug(f"===\n{'\n'.join(script_lines)}\n===")
