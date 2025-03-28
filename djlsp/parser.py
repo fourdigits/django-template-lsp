@@ -190,7 +190,7 @@ class TemplateParser:
                 self.get_type_comment_complations,
             ),
             (
-                re.compile(r'.*({{|{% \w+ ).*?([\w\d_\.\[\]"]*)$'),
+                re.compile(r".*({{|{% \w+ ).*?([\w\d_\.]*)$"),
                 self.get_context_completions,
             ),
         ]
@@ -396,7 +396,7 @@ class TemplateParser:
             type_sort = {"statement": "1", "property": "2"}.get(comp.type, "9")
             return f"{type_sort}-{comp.name}".lower()
 
-        if "." in prefix or "[" in prefix:
+        if "." in prefix:
             # Find . completions with Jedi
             return [
                 CompletionItem(
@@ -428,7 +428,7 @@ class TemplateParser:
             (re.compile(r"^.*({%|{{) ?[\w \.\|]*\|(\w*)$"), self.get_filter_hover),
             (re.compile(r"^.*{% ?(\w*)$"), self.get_tag_hover),
             (
-                re.compile(r'.*({{|{% \w+ ).*?([\w\d_\.\[\]"]*)$'),
+                re.compile(r".*({{|{% \w+ ).*?([\w\d_\.]*)$"),
                 self.get_context_hover,
             ),
         ]
@@ -471,7 +471,7 @@ class TemplateParser:
         context_name = self._get_full_hover_name(line, character, match.group(2))
         logger.debug(f"Find context hover for: {context_name}")
 
-        if "." in context_name or "[" in context_name:
+        if "." in context_name:
             hlp = self.create_jedi_script(context_name).help()
             symbol_name = hlp[0].name if hlp else None
         else:
