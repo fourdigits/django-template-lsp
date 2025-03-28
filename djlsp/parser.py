@@ -193,7 +193,8 @@ class TemplateParser:
                         ),
                     )
                 )
-        return []
+        # Check CSS
+        return self.get_css_class_name_completions(line, character)
 
     def get_load_completions(self, match: Match, **kwargs):
         prefix = match.group(1).split(" ")[-1]
@@ -403,6 +404,37 @@ class TemplateParser:
                 for var in self.context
                 if var.startswith(prefix)
             ]
+
+    def get_css_class_name_completions(self, line, character):
+        # Flatten text to one line and remove Django template
+        one_line_html = "".join(self.document.lines)
+        one_line_html = re.sub(
+            r"\{\%.*?\%\}", lambda m: " " * len(m.group(0)), one_line_html
+        )
+        one_line_html = re.sub(
+            r"\{\{.*?\}\}", lambda m: " " * len(m.group(0)), one_line_html
+        )
+
+        abs_position = sum(len(self.document.lines[i]) for i in range(line)) + character
+        class_attr_pattern = re.compile(r'class=["\']([^"\']*)["\']', re.DOTALL)
+
+        for match in class_attr_pattern.finditer(one_line_html):
+            start_idx, end_idx = match.span(1)
+
+            if start_idx <= abs_position <= end_idx:
+                class_value = match.group(1)
+                relative_pos = abs_position - start_idx
+
+                prefix_match = re.search(r"\b[\w-]*$", class_value[:relative_pos])
+                prefix = prefix_match.group(0) if prefix_match else ""
+
+                return [
+                    CompletionItem(label=class_name)
+                    for class_name in self.workspace_index.css_class_names
+                    if class_name.startswith(prefix)
+                ]
+
+        return []
 
     ###################################################################################
     # Hover
