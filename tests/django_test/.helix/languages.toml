@@ -1,6 +1,6 @@
 [language-server.djlsp]
 command = "djlsp"
-args = ["--enable-log"]
+args = ["--enable-log", "--cache"]
 
 [language-server.djlsp.config]
 django_settings_modules="django_test.settings"
