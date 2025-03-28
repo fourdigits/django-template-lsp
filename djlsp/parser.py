@@ -118,7 +118,8 @@ class TemplateParser:
         for variable, variable_type in self.context.items():
             if variable_type:
                 variable_type_aliased = variable_type
-                # allow to use more complex types by splitting them into segments and import separatly
+                # allow to use more complex types by splitting them into segments
+                # and try to import them separatly
                 for imp in set(filter(None, re.split(r"\[|\]| |,", variable_type))):
                     variable_import = ".".join(imp.split(".")[:-1])
                     if variable_import == "":
