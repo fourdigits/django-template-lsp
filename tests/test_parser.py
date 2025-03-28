@@ -186,6 +186,23 @@ def test_completion_context_based_type_hint_comment():
     assert any(item.label == "capitalize" for item in parser.completions(1, 10))
 
 
+def test_completion_context_with_same_symbol_name():
+    parser = create_parser("{# type jedi: jedi.Script #}\n{{ jedi.com")
+    assert any(item.label == "complete" for item in parser.completions(1, 10))
+
+
+@pytest.mark.parametrize(
+    "typ,completion,results",
+    [
+        ("abc: list[str]", "{{ abc.0.", "capitalize"),
+        ("abc: list[jedi.Script] | dict[str, jedi.Script]", "{{ abc.0.", "complete"),
+    ],
+)
+def test_completion_context_advanced(typ, completion, results):
+    parser = create_parser("{# type " + typ + " #}\n" + completion)
+    assert any(item.label == results for item in parser.completions(1, len(completion)))
+
+
 ###################################################################################
 # Hovers
 ###################################################################################
