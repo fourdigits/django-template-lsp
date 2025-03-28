@@ -1,5 +1,6 @@
 import logging
 import re
+import hashlib
 from functools import cached_property
 from re import Match
 from textwrap import dedent
@@ -117,18 +118,23 @@ class TemplateParser:
             )
         for variable, variable_type in self.context.items():
             if variable_type:
-                variable_import = ".".join(variable_type.split(".")[:-1])
-                script_lines.extend(
-                    [
-                        f"import {variable_import}",
-                        f"{variable}: {variable_type}",
-                    ]
-                )
+                variable_type_aliased = variable_type
+                # allow to use more complex types by splitting them into segments and import separatly
+                for imp in set(filter(None, re.split(r"\[|\]| |,", variable_type))):
+                    variable_import = ".".join(imp.split(".")[:-1])
+                    # create import alias to allow variable to have same name as module
+                    import_alias = "__" + hashlib.md5(variable_import.encode()).hexdigest()
+                    variable_type_aliased = variable_type_aliased.replace(variable_import, import_alias)
+                    script_lines.append(f"import {variable_import} as {import_alias}")
+
+                script_lines.append(f"{variable}: {variable_type}")
             else:
                 script_lines.append(f"{variable} = None")
 
         # Add user code
         script_lines.append(code)
+
+        logger.debug(f"===\n{'\n'.join(script_lines)}\n===")
 
         return jedi.Script(code="\n".join(script_lines), project=self.jedi_project)
 
