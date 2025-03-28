@@ -83,9 +83,8 @@ class TemplateParser:
                 context[variable_stripped] = None
 
         # Update type definations based on template type comments
-        # only simple version of variable: full python path:
         # {# type some_variable: full.python.path.to.class #}
-        re_type = re.compile(r".*{# type (\w+) ?: ?([\w\d_\.]+) ?#}.*")
+        re_type = re.compile(r".*{# type (\w+) ?: ?(.*?) ?#}.*")
         for line in self.document.lines:
             if match := re_type.match(line):
                 variable = match.group(1)
@@ -122,17 +121,20 @@ class TemplateParser:
                 # allow to use more complex types by splitting them into segments and import separatly
                 for imp in set(filter(None, re.split(r"\[|\]| |,", variable_type))):
                     variable_import = ".".join(imp.split(".")[:-1])
+                    if variable_import == "":
+                        continue
+
                     # create import alias to allow variable to have same name as module
                     import_alias = "__" + hashlib.md5(variable_import.encode()).hexdigest()
                     variable_type_aliased = variable_type_aliased.replace(variable_import, import_alias)
                     script_lines.append(f"import {variable_import} as {import_alias}")
 
-                script_lines.append(f"{variable}: {variable_type}")
+                script_lines.append(f"{variable}: {variable_type_aliased}")
             else:
                 script_lines.append(f"{variable} = None")
 
         # Add user code
-        script_lines.append(code)
+        script_lines.append(re.sub(r"(.*?)\.(\d+)", r"\1[\2]", code))
 
         logger.debug(f"===\n{'\n'.join(script_lines)}\n===")
 
@@ -182,7 +184,7 @@ class TemplateParser:
                 self.get_type_comment_complations,
             ),
             (
-                re.compile(r".*({{|{% \w+ ).*?([\w\d_\.]*)$"),
+                re.compile(r'.*({{|{% \w+ ).*?([\w\d_\.\[\]"]*)$'),
                 self.get_context_completions,
             ),
         ]
@@ -388,7 +390,7 @@ class TemplateParser:
             type_sort = {"statement": "1", "property": "2"}.get(comp.type, "9")
             return f"{type_sort}-{comp.name}".lower()
 
-        if "." in prefix:
+        if "." in prefix or "[" in prefix:
             # Find . completions with Jedi
             return [
                 CompletionItem(
@@ -420,7 +422,7 @@ class TemplateParser:
             (re.compile(r"^.*({%|{{) ?[\w \.\|]*\|(\w*)$"), self.get_filter_hover),
             (re.compile(r"^.*{% ?(\w*)$"), self.get_tag_hover),
             (
-                re.compile(r".*({{|{% \w+ ).*?([\w\d_\.]*)$"),
+                re.compile(r'.*({{|{% \w+ ).*?([\w\d_\.\[\]"]*)$'),
                 self.get_context_hover,
             ),
         ]
@@ -463,7 +465,7 @@ class TemplateParser:
         context_name = self._get_full_hover_name(line, character, match.group(2))
         logger.debug(f"Find context hover for: {context_name}")
 
-        if "." in context_name:
+        if "." in context_name or "[" in context_name:
             hlp = self.create_jedi_script(context_name).help()
             symbol_name = hlp[0].name if hlp else None
         else:
