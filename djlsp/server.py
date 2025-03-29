@@ -255,7 +255,7 @@ class DjangoTemplateLanguageServer(LanguageServer):
             patterns = list(
                 [
                     os.path.join(self.project_src_path, pattern)
-                    in django_data.get("file_watcher_globs", [])
+                    for pattern in django_data.get("file_watcher_globs", [])
                 ]
             )
 
@@ -268,7 +268,7 @@ class DjangoTemplateLanguageServer(LanguageServer):
 
         files_hash = hashlib.blake2b(digest_size=16)
         for file_path in sorted(files):
-            if "__pycache__" not in full_path and os.path.isfile(file_path):
+            if "__pycache__" not in file_path and os.path.isfile(file_path):
                 files_hash.update(f"{os.stat(file_path).st_mtime}".encode())
 
         logger.debug(f"Caculating cache hash took {time.time() - start_time:.4f}s")

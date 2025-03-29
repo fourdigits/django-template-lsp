@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import re
 from functools import cached_property
@@ -82,9 +83,8 @@ class TemplateParser:
                 context[variable_stripped] = None
 
         # Update type definations based on template type comments
-        # only simple version of variable: full python path:
         # {# type some_variable: full.python.path.to.class #}
-        re_type = re.compile(r".*{# type (\w+) ?: ?([\w\d_\.]+) ?#}.*")
+        re_type = re.compile(r".*{# type (\w+) ?: ?(.*?) ?#}.*")
         for line in self.document.lines:
             if match := re_type.match(line):
                 variable = match.group(1)
@@ -117,18 +117,32 @@ class TemplateParser:
             )
         for variable, variable_type in self.context.items():
             if variable_type:
-                variable_import = ".".join(variable_type.split(".")[:-1])
-                script_lines.extend(
-                    [
-                        f"import {variable_import}",
-                        f"{variable}: {variable_type}",
-                    ]
-                )
+                variable_type_aliased = variable_type
+                # allow to use more complex types by splitting them into segments
+                # and try to import them separatly
+                for imp in set(filter(None, re.split(r"\[|\]| |,", variable_type))):
+                    variable_import = ".".join(imp.split(".")[:-1])
+                    if variable_import == "":
+                        continue
+
+                    # create import alias to allow variable to have same name as module
+                    import_alias = (
+                        "__" + hashlib.md5(variable_import.encode()).hexdigest()
+                    )
+                    variable_type_aliased = variable_type_aliased.replace(
+                        variable_import, import_alias
+                    )
+                    script_lines.append(f"import {variable_import} as {import_alias}")
+
+                script_lines.append(f"{variable}: {variable_type_aliased}")
             else:
                 script_lines.append(f"{variable} = None")
 
         # Add user code
-        script_lines.append(code)
+        # django uses abc.0 for list index lookup, replace those with abc[0]
+        script_lines.append(re.sub(r"\.(\d+)", r"[\1]", code))
+
+        logger.debug(f"===\n{'\n'.join(script_lines)}\n===")
 
         return jedi.Script(code="\n".join(script_lines), project=self.jedi_project)
 
