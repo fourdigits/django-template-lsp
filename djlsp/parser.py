@@ -116,22 +116,27 @@ class TemplateParser:
                 )
             )
         for variable_name, variable in self.context.items():
-            variable_type_aliased = variable.type
-            # allow to use more complex types by splitting them into segments
-            # and try to import them separatly
-            for imp in set(filter(None, re.split(r"\[|\]| |,", variable.type))):
-                variable_import = ".".join(imp.split(".")[:-1])
-                if variable_import == "":
-                    continue
+            if variable.type:
+                variable_type_aliased = variable.type
+                # allow to use more complex types by splitting them into segments
+                # and try to import them separatly
+                for imp in set(filter(None, re.split(r"\[|\]| |,", variable.type))):
+                    variable_import = ".".join(imp.split(".")[:-1])
+                    if variable_import == "":
+                        continue
 
-                # create import alias to allow variable to have same name as module
-                import_alias = "__" + hashlib.md5(variable_import.encode()).hexdigest()
-                variable_type_aliased = variable_type_aliased.replace(
-                    variable_import, import_alias
-                )
-                script_lines.append(f"import {variable_import} as {import_alias}")
+                    # create import alias to allow variable to have same name as module
+                    import_alias = (
+                        "__" + hashlib.md5(variable_import.encode()).hexdigest()
+                    )
+                    variable_type_aliased = variable_type_aliased.replace(
+                        variable_import, import_alias
+                    )
+                    script_lines.append(f"import {variable_import} as {import_alias}")
 
-            script_lines.append(f"{variable_name}: {variable_type_aliased}")
+                script_lines.append(f"{variable_name}: {variable_type_aliased}")
+            else:
+                script_lines.append(f"{variable_name} = None")
 
         # Add user code
         # django uses abc.0 for list index lookup, replace those with abc[0]
@@ -410,7 +415,7 @@ class TemplateParser:
                     label=var_name,
                     sort_text=var_name.lower(),
                     kind=CompletionItemKind.Variable,
-                    documentation=var.docs,
+                    documentation=f"{var_name}: {var.type}\n\n{var.docs}".strip(),
                 )
                 for var_name, var in self.context.items()
                 if var_name.startswith(prefix)
@@ -484,7 +489,7 @@ class TemplateParser:
                 contents=(
                     f"(variable) {context_name}: {self.context[context_name].type}"
                     f"\n\n{self.context[context_name].docs}"
-                ),
+                ).strip(),
             )
 
         return None

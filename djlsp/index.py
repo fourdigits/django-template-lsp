@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 
 @dataclass
 class Variable:
-    type: str = "None"
+    type: str | None = None
     docs: str = ""
 
 
@@ -103,9 +103,9 @@ class WorkspaceIndex:
                     **options,
                     "context": {
                         var_name: (
-                            Variable(type=type_)
-                            if isinstance(type_, str)
-                            else Variable(**type_)
+                            Variable(**type_)
+                            if isinstance(type_, dict)
+                            else Variable(type=type_)
                         )
                         for var_name, type_ in options.get("context", {}).items()
                     },
@@ -116,7 +116,7 @@ class WorkspaceIndex:
 
         self.global_template_context = {
             name: (
-                Variable(type=type_) if isinstance(type_, str) else Variable(**type_)
+                Variable(**type_) if isinstance(type_, dict) else Variable(type=type_)
             )
             for name, type_ in django_data.get("global_template_context", {}).items()
         }
