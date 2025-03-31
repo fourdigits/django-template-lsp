@@ -17,7 +17,7 @@ from lsprotocol.types import (
 from pygls.workspace import TextDocument
 
 from djlsp.constants import BUILTIN
-from djlsp.index import WorkspaceIndex
+from djlsp.index import Variable, WorkspaceIndex
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,7 @@ class TemplateParser:
             if match := re_as.match(line):
                 found_variables.extend(match.group(1).split(" "))
             if match := re_for.match(line):
-                context["forloop"] = None
+                context["forloop"] = Variable()
                 found_variables.extend(match.group(1).split(","))
             if match := re_with.match(line):
                 for assignment in match.group(1).split(" "):
@@ -80,7 +80,7 @@ class TemplateParser:
 
         for variable in found_variables:
             if variable_stripped := variable.strip():
-                context[variable_stripped] = None
+                context[variable_stripped] = Variable()
 
         # Update type definations based on template type comments
         # {# type some_variable: full.python.path.to.class #}
@@ -89,7 +89,7 @@ class TemplateParser:
             if match := re_type.match(line):
                 variable = match.group(1)
                 variable_type = match.group(2)
-                context[variable] = variable_type
+                context[variable] = Variable(type=variable_type)
 
         return context
 
@@ -115,28 +115,23 @@ class TemplateParser:
                     """
                 )
             )
-        for variable, variable_type in self.context.items():
-            if variable_type:
-                variable_type_aliased = variable_type
-                # allow to use more complex types by splitting them into segments
-                # and try to import them separatly
-                for imp in set(filter(None, re.split(r"\[|\]| |,", variable_type))):
-                    variable_import = ".".join(imp.split(".")[:-1])
-                    if variable_import == "":
-                        continue
+        for variable_name, variable in self.context.items():
+            variable_type_aliased = variable.type
+            # allow to use more complex types by splitting them into segments
+            # and try to import them separatly
+            for imp in set(filter(None, re.split(r"\[|\]| |,", variable.type))):
+                variable_import = ".".join(imp.split(".")[:-1])
+                if variable_import == "":
+                    continue
 
-                    # create import alias to allow variable to have same name as module
-                    import_alias = (
-                        "__" + hashlib.md5(variable_import.encode()).hexdigest()
-                    )
-                    variable_type_aliased = variable_type_aliased.replace(
-                        variable_import, import_alias
-                    )
-                    script_lines.append(f"import {variable_import} as {import_alias}")
+                # create import alias to allow variable to have same name as module
+                import_alias = "__" + hashlib.md5(variable_import.encode()).hexdigest()
+                variable_type_aliased = variable_type_aliased.replace(
+                    variable_import, import_alias
+                )
+                script_lines.append(f"import {variable_import} as {import_alias}")
 
-                script_lines.append(f"{variable}: {variable_type_aliased}")
-            else:
-                script_lines.append(f"{variable} = None")
+            script_lines.append(f"{variable_name}: {variable_type_aliased}")
 
         # Add user code
         # django uses abc.0 for list index lookup, replace those with abc[0]
@@ -412,10 +407,13 @@ class TemplateParser:
             # Only context completions
             return [
                 CompletionItem(
-                    label=var, sort_text=var.lower(), kind=CompletionItemKind.Variable
+                    label=var_name,
+                    sort_text=var_name.lower(),
+                    kind=CompletionItemKind.Variable,
+                    documentation=var.docs,
                 )
-                for var in self.context
-                if var.startswith(prefix)
+                for var_name, var in self.context.items()
+                if var_name.startswith(prefix)
             ]
 
     ###################################################################################
@@ -472,19 +470,20 @@ class TemplateParser:
         logger.debug(f"Find context hover for: {context_name}")
 
         if "." in context_name:
-            hlp = self.create_jedi_script(context_name).help()
-            symbol_name = hlp[0].name if hlp else None
-        else:
-            if context_name not in self.context:
+            if not (hlp := self.create_jedi_script(context_name).help()):
                 return None
-            hlp = self.create_jedi_script(self.context.get(context_name)).help()
-            symbol_name = context_name
 
-        if hlp:
             return Hover(
                 contents=(
-                    f"({hlp[0].type}) {symbol_name}: {hlp[0].get_type_hint()}"
+                    f"({hlp[0].type}) {hlp[0].name}: {hlp[0].get_type_hint()}"
                     f"\n\n{hlp[0].docstring()}"
+                ),
+            )
+        elif context_name in self.context:
+            return Hover(
+                contents=(
+                    f"(variable) {context_name}: {self.context[context_name].type}"
+                    f"\n\n{self.context[context_name].docs}"
                 ),
             )
 

@@ -2,12 +2,18 @@ from dataclasses import dataclass, field
 
 
 @dataclass
+class Variable:
+    type: str = "None"
+    docs: str = ""
+
+
+@dataclass
 class Template:
     name: str = ""
     path: str = ""
     extends: str | None = None
     blocks: list[str] | None = None
-    context: dict = field(default_factory=dict)
+    context: dict[str, Variable] = field(default_factory=dict)
 
 
 @dataclass
@@ -22,7 +28,7 @@ class Tag:
     name: str = ""
     docs: str = ""
     source: str = ""
-    inner_tags: list[str] = ""
+    inner_tags: list[str] = field(default_factory=list)
     closing_tag: str = ""
 
 
@@ -44,12 +50,12 @@ class Library:
 class WorkspaceIndex:
     src_path: str = ""
     env_path: str = ""
-    file_watcher_globs: [str] = field(default_factory=list)
-    static_files: [str] = field(default_factory=list)
+    file_watcher_globs: list[str] = field(default_factory=list)
+    static_files: list[str] = field(default_factory=list)
     urls: dict[str, Url] = field(default_factory=dict)
     libraries: dict[str, Library] = field(default_factory=dict)
     templates: dict[str, Template] = field(default_factory=dict)
-    global_template_context: dict[str, str] = field(default_factory=dict)
+    global_template_context: dict[str, Variable] = field(default_factory=dict)
 
     def update(self, django_data: dict):
         self.file_watcher_globs = django_data.get(
@@ -91,8 +97,26 @@ class WorkspaceIndex:
         }
 
         self.templates = {
-            name: Template(name=name, **options)
+            name: Template(
+                name=name,
+                **{
+                    **options,
+                    "context": {
+                        var_name: (
+                            Variable(type=type_)
+                            if isinstance(type_, str)
+                            else Variable(**type_)
+                        )
+                        for var_name, type_ in options.get("context", {}).items()
+                    },
+                },
+            )
             for name, options in django_data.get("templates", {}).items()
         }
 
-        self.global_template_context = django_data.get("global_template_context", {})
+        self.global_template_context = {
+            name: (
+                Variable(type=type_) if isinstance(type_, str) else Variable(**type_)
+            )
+            for name, type_ in django_data.get("global_template_context", {}).items()
+        }
