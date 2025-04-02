@@ -37,7 +37,7 @@ from pygls.server import LanguageServer
 from djlsp import __version__
 from djlsp.constants import FALLBACK_DJANGO_DATA
 from djlsp.index import WorkspaceIndex
-from djlsp.parser import _MOST_RECENT_COMPLETIONS, TemplateParser
+from djlsp.parser import TemplateParser
 
 logger = logging.getLogger(__name__)
 
