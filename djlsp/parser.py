@@ -133,7 +133,9 @@ class TemplateParser:
                     split_assignment = assignment.split("=")
                     if len(split_assignment) == 2:
                         context[split_assignment[0].strip()] = Variable(
-                            value=split_assignment[1].strip()
+                            value=self._django_variable_to_python(
+                                split_assignment[1].strip(), context
+                            )
                         )
 
         # As tag
