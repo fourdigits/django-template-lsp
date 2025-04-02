@@ -549,7 +549,7 @@ class TemplateParser:
 
     @staticmethod
     def resolve_completion(item: CompletionItem):
-        if not item.documentation:
+        if not item.documentation and item.label in _MOST_RECENT_COMPLETIONS:
             completion = _MOST_RECENT_COMPLETIONS[item.label]
             item.detail = f"({completion.type}) {completion.name}"
             item.documentation = completion.docstring()

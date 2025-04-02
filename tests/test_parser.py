@@ -197,34 +197,88 @@ def test_completion_context_with_same_symbol_name():
 
 
 @pytest.mark.parametrize(
-    "code,cursor,result,doc",
+    "code,cursor,result,detail,doc",
     [
         (
             "{# type abc: list[str] #}\n{{ abc.0.",
             (1, 9),
             "capitalize",
+            "(function) capitalize",
             "capitalize() -> str\n\nReturn a capitalized version of the string.",
         ),
         (
             "{# type abc: list[jedi.Script] | dict[str, jedi.Script] #}\n{{ abc.0.",
             (1, 9),
             "complete",
+            "(function) complete",
             "",
         ),
         (
             "{{ blo",
             (0, 6),
             "blog",
-            "blog: list[str]\n\nThis is a doc for the blog context variable",
+            "blog: list[str]",
+            "This is a doc for the blog context variable",
+        ),
+        (
+            "{# type test_dict: dict[str, str] #}\n"
+            "{% for k, v in test_dict.items %}\n{{ k.",
+            (2, 5),
+            "capitalize",
+            "(function) capitalize",
+            "",
         ),
     ],
 )
-def test_completion_context_advanced(code, cursor, result, doc):
+def test_completion_context_advanced(code, cursor, result, detail, doc):
     parser = create_parser(code)
-    assert any(
-        (item.label == result and item.documentation.startswith(doc))
-        for item in parser.completions(*cursor)
+    found = False
+    for item in parser.completions(*cursor):
+        item = parser.resolve_completion(item)
+        if (
+            item.label == result
+            and item.detail == detail
+            and item.documentation.startswith(doc)
+        ):
+            found = True
+            break
+
+    assert found
+
+
+def test_completion_context_scoped():
+    base = "\n".join(
+        [
+            "{# type test_dict: dict[str, list[str]] #}",
+            "{% with test_dict_alias=test_dict%}",
+            "    {% for a in test_dict_alias %}",
+            "        {% for k,v in test_dict.items %}",
+            "            {% for e in v %}",
+            "                {{ e }}",
+            "            {% endfor %}",
+            "",
+            "            {% for world in v %}",
+            "{{ ",
+        ]
     )
+    completed_base = (
+        base + " world }}\n{% endfor %}\n{% endfor %}\n{% endfor %}\n{% endwith %}"
+    )
+
+    assert not any(
+        item.label == "e" for item in create_parser(base).completions(9, 3)
+    ), "do not recommend out of scope variables"
+    assert not any(
+        item.label == "forloop"
+        for item in create_parser(completed_base + "\n{{ ").completions(14, 3)
+    ), "do not complete for loop outside of foor loop"
+    assert any(
+        item.label == "capitalize"
+        for item in create_parser(base + "world.").completions(9, 9)
+    ), "recommend correct variables for scope and support intelisense"
+    assert any(
+        item.label == "forloop" for item in create_parser(base).completions(9, 3)
+    ), "test that django forloop variable is precense in foor loop"
 
 
 ###################################################################################
@@ -266,6 +320,13 @@ def test_hover_context_docs():
         hover.contents
         == "(variable) blog: list[str]\n\nThis is a doc for the blog context variable"
     )
+
+
+def test_hover_context_function():
+    parser = create_parser("{# type test_str: str #}\n{{ test_str.capitalize")
+    hover = parser.hover(1, 17)
+    assert hover is not None
+    assert hover.contents.startswith("(function) capitalize: capitalize(self) -> str")
 
 
 ###################################################################################
