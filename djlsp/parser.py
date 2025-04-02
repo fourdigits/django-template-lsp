@@ -627,7 +627,7 @@ class TemplateParser:
                 contents=(
                     f"({hlp[0].type}) {hlp[0].name}: {hlp[0].get_type_hint()}"
                     f"\n\n{hlp[0].docstring()}"
-                ),
+                ).strip(),
             )
 
         return None

@@ -329,6 +329,13 @@ def test_hover_context_function():
     assert hover.contents.startswith("(function) capitalize: capitalize(self) -> str")
 
 
+def test_hover_context_forloop():
+    parser = create_parser("{# type test_str: list[str] #}\n{% for abc in test_str %}")
+    hover = parser.hover(1, 9)
+    assert hover is not None
+    assert hover.contents == "(statement) abc: str"
+
+
 ###################################################################################
 # Goto Definitions
 ###################################################################################
