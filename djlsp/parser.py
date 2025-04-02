@@ -180,7 +180,9 @@ class TemplateParser:
         # Add user code
         if transform_code:
             script_lines.append(self._django_variable_to_python(code, context, execute_last_function=execute_last_function))
-            logger.debug(f"===\n{'\n'.join(script_lines)}\n===")
+            logger.debug(
+                "\n".join(["=== Jedi script ===", *script_lines, "=== End script ==="])
+            )
         else:
             script_lines.append(code)
 
