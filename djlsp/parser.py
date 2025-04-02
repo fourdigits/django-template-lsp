@@ -1,7 +1,7 @@
 import hashlib
 import logging
-import time
 import re
+import time
 from functools import cached_property
 from re import Match
 from textwrap import dedent
@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 RE_TAGS_NO_CONTEXT = re.compile(r"{% ?(end.*|comment|csrf_token|debug|spaceless)")
 
 _MOST_RECENT_COMPLETIONS: dict[str, Completion] = {}
+
 
 def clear_completions_cache():
     _MOST_RECENT_COMPLETIONS.clear()
@@ -77,8 +78,16 @@ class TemplateParser:
                 context[variable] = Variable(type=variable_type)
 
         scoped_tags = [
-            ("for", re.compile(r".*{% ?for ([\w ,]*) in ([\w.]+).*$"), re.compile(r".*{% ?endfor")),
-            ("with", re.compile(r".*{% ?with (.+) ?%}.*"), re.compile(r".*{% ?endwith")),
+            (
+                "for",
+                re.compile(r".*{% ?for ([\w ,]*) in ([\w.]+).*$"),
+                re.compile(r".*{% ?endfor"),
+            ),
+            (
+                "with",
+                re.compile(r".*{% ?with (.+) ?%}.*"),
+                re.compile(r".*{% ?endwith"),
+            ),
         ]
         stack = []
         for line_idx, src_line in enumerate(self.document.lines):
@@ -104,19 +113,28 @@ class TemplateParser:
 
             if tag_name == "for":
                 context["forloop"] = Variable(type="_DjangoForLoop")
-                loop_variables, variable = match.group(1).strip(), match.group(2).strip()
+                loop_variables, variable = (
+                    match.group(1).strip(),
+                    match.group(2).strip(),
+                )
                 variable = self._django_variable_to_python(variable, context)
                 if "," in loop_variables:
                     for var_idx, loop_var in enumerate(loop_variables.split(",")):
-                        context[loop_var.strip()] = Variable(value=f"next(iter({variable}))[{var_idx}]")
+                        context[loop_var.strip()] = Variable(
+                            value=f"next(iter({variable}))[{var_idx}]"
+                        )
                 else:
-                    context[loop_variables.strip()] = Variable(value=f"next(iter({variable}))")
+                    context[loop_variables.strip()] = Variable(
+                        value=f"next(iter({variable}))"
+                    )
 
             if tag_name == "with":
                 for assignment in match.group(1).split(" "):
                     split_assignment = assignment.split("=")
                     if len(split_assignment) == 2:
-                        context[split_assignment[0].strip()] = Variable(value=split_assignment[1].strip())
+                        context[split_assignment[0].strip()] = Variable(
+                            value=split_assignment[1].strip()
+                        )
 
         # As tag
         # TODO: integrate into scope matcher
@@ -129,7 +147,16 @@ class TemplateParser:
 
         return context
 
-    def create_jedi_script(self, code, *, context=None, line=None, character=None, transform_code=True, execute_last_function=True) -> jedi.Script:
+    def create_jedi_script(
+        self,
+        code,
+        *,
+        context=None,
+        line=None,
+        character=None,
+        transform_code=True,
+        execute_last_function=True,
+    ) -> jedi.Script:
         """
         Generate jedi Script based on template context and given code.
         """
@@ -150,10 +177,10 @@ class TemplateParser:
                         first: bool
                         last: bool
                         parentloop: "_DjangoForLoop"
-                    ''' 
+                    '''
                 )
             )
-    
+
         for variable_name, variable in context.items():
             if variable.type:
                 variable_type_aliased = variable.type
@@ -179,7 +206,11 @@ class TemplateParser:
 
         # Add user code
         if transform_code:
-            script_lines.append(self._django_variable_to_python(code, context, execute_last_function=execute_last_function))
+            script_lines.append(
+                self._django_variable_to_python(
+                    code, context, execute_last_function=execute_last_function
+                )
+            )
             logger.debug(
                 "\n".join(["=== Jedi script ===", *script_lines, "=== End script ==="])
             )
@@ -188,7 +219,9 @@ class TemplateParser:
 
         return jedi.Script(code="\n".join(script_lines), project=self.jedi_project)
 
-    def _django_variable_to_python(self, variable: str, context, *, execute_last_function=True):
+    def _django_variable_to_python(
+        self, variable: str, context, *, execute_last_function=True
+    ):
         def join_path(*segments: str):
             return ".".join(filter(None, segments))
 
@@ -204,15 +237,22 @@ class TemplateParser:
                 res = f"{res}[{seg}]"
                 continue
 
-            # django does some magic (e.g. call function automaticaly, use attribute access for dictionaries, ...)
+            # django does some magic (e.g. call function automaticaly,
+            # use attribute access for dictionaries, ...)
             # try to infer the correct python syntax
-            infer = self.create_jedi_script(join_path(res, seg), context=context, transform_code=False).infer()
+            infer = self.create_jedi_script(
+                join_path(res, seg), context=context, transform_code=False
+            ).infer()
             if not infer:
-                logger.debug(f"Failed to transform variable '{variable}' (got until {res})")
+                logger.debug(
+                    f"Failed to transform variable '{variable}' (got until {res})"
+                )
                 return variable
 
             # django calls functions automaticaly
-            if infer[0].type == "function" and (execute_last_function if idx == (len(segments) - 1) else True):
+            if infer[0].type == "function" and (
+                execute_last_function if idx == (len(segments) - 1) else True
+            ):
                 res = join_path(res, seg) + "()"
             else:
                 res = join_path(res, seg)
@@ -220,10 +260,12 @@ class TemplateParser:
         if variable.endswith("."):
             res += "."
 
-        logger.debug(f"Variable '{variable}' transformed to '{res}' in {time.time() - start_time:.4f}s")
+        total_time = time.time() - start_time
+        logger.debug(
+            f"Variable '{variable}' transformed to '{res}' in {total_time:.4f}s"
+        )
 
         return res
-
 
     def _jedi_type_to_completion_kind(self, comp_type: str) -> CompletionItemKind:
         """Map Jedi completion types to LSP CompletionItemKind."""
@@ -488,7 +530,6 @@ class TemplateParser:
                         label=comp.name,
                         sort_text=get_sort_text(comp),
                         kind=self._jedi_type_to_completion_kind(comp.type),
-#                    documentation=comp.docstring(),
                     )
                 )
             return completions
@@ -500,7 +541,7 @@ class TemplateParser:
                     sort_text=var_name.lower(),
                     kind=CompletionItemKind.Variable,
                     detail=f"{var_name}: {var.type}",
-                    documentation=var.docs
+                    documentation=var.docs,
                 )
                 for var_name, var in self.get_context(**kwargs).items()
                 if var_name.startswith(prefix)
@@ -559,7 +600,7 @@ class TemplateParser:
         context_name = self._get_full_hover_name(line, character, match.group(2))
         logger.debug(f"Find context hover for: {context_name}")
 
-        # first try to resolve variable type locally 
+        # first try to resolve variable type locally
         context = self.get_context(line=line, character=character)
         if context_name in context and context[context_name].type:
             return Hover(
@@ -570,7 +611,9 @@ class TemplateParser:
             )
 
         # but if not possible, use jedi
-        if hlp := self.create_jedi_script(context_name, line=line, character=character, execute_last_function=False).help():
+        if hlp := self.create_jedi_script(
+            context_name, line=line, character=character, execute_last_function=False
+        ).help():
             return Hover(
                 contents=(
                     f"({hlp[0].type}) {hlp[0].name}: {hlp[0].get_type_hint()}"
@@ -661,7 +704,9 @@ class TemplateParser:
         first_match = match.group(2)
         full_match = self._get_full_definition_name(line, character, first_match)
         logger.debug(f"Find context goto definition for: {full_match}")
-        if gotos := self.create_jedi_script(full_match, line=line, character=character).goto(column=len(first_match)):
+        if gotos := self.create_jedi_script(
+            full_match, line=line, character=character
+        ).goto(column=len(first_match)):
             goto = gotos[0]
             if goto.module_name == "__main__":
                 # Location is in fake script get type location

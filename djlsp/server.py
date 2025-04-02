@@ -13,9 +13,9 @@ from functools import cached_property
 
 import jedi
 from lsprotocol.types import (
+    COMPLETION_ITEM_RESOLVE,
     INITIALIZE,
     TEXT_DOCUMENT_COMPLETION,
-    COMPLETION_ITEM_RESOLVE,
     TEXT_DOCUMENT_DEFINITION,
     TEXT_DOCUMENT_HOVER,
     WORKSPACE_DID_CHANGE_WATCHED_FILES,
@@ -37,7 +37,7 @@ from pygls.server import LanguageServer
 from djlsp import __version__
 from djlsp.constants import FALLBACK_DJANGO_DATA
 from djlsp.index import WorkspaceIndex
-from djlsp.parser import TemplateParser, _MOST_RECENT_COMPLETIONS
+from djlsp.parser import _MOST_RECENT_COMPLETIONS, TemplateParser
 
 logger = logging.getLogger(__name__)
 
@@ -422,7 +422,9 @@ def initialized(ls: DjangoTemplateLanguageServer, params: InitializeParams):
 
 @server.feature(
     TEXT_DOCUMENT_COMPLETION,
-    CompletionOptions(trigger_characters=[" ", "|", "'", '"', "."], resolve_provider=True),
+    CompletionOptions(
+        trigger_characters=[" ", "|", "'", '"', "."], resolve_provider=True
+    ),
 )
 def completions(ls: DjangoTemplateLanguageServer, params: CompletionParams):
     logger.info(f"COMMAND: {TEXT_DOCUMENT_COMPLETION}")
