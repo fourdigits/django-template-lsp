@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 class Variable:
     type: str | None = None
     docs: str = ""
+    value: str = ""
 
 
 @dataclass

@@ -15,9 +15,11 @@ import jedi
 from lsprotocol.types import (
     INITIALIZE,
     TEXT_DOCUMENT_COMPLETION,
+    COMPLETION_ITEM_RESOLVE,
     TEXT_DOCUMENT_DEFINITION,
     TEXT_DOCUMENT_HOVER,
     WORKSPACE_DID_CHANGE_WATCHED_FILES,
+    CompletionItem,
     CompletionList,
     CompletionOptions,
     CompletionParams,
@@ -420,7 +422,7 @@ def initialized(ls: DjangoTemplateLanguageServer, params: InitializeParams):
 
 @server.feature(
     TEXT_DOCUMENT_COMPLETION,
-    CompletionOptions(trigger_characters=[" ", "|", "'", '"', "."]),
+    CompletionOptions(trigger_characters=[" ", "|", "'", '"', "."], resolve_provider=True),
 )
 def completions(ls: DjangoTemplateLanguageServer, params: CompletionParams):
     logger.info(f"COMMAND: {TEXT_DOCUMENT_COMPLETION}")
@@ -436,7 +438,22 @@ def completions(ls: DjangoTemplateLanguageServer, params: CompletionParams):
         )
     except Exception as e:
         logger.error(e)
-        return CompletionList(items=[])
+        return None
+
+
+@server.feature(COMPLETION_ITEM_RESOLVE)
+def completion_item_resolve(ls: DjangoTemplateLanguageServer, item: CompletionItem):
+    logger.info(f"COMMAND: {COMPLETION_ITEM_RESOLVE}")
+    logger.debug(f"PARAMS: {item}")
+
+    if not item.documentation:
+        logger.debug(f"Existing documentation: {item.documentation} {item}")
+        from .parser import _MOST_RECENT_COMPLETIONS
+        completion = _MOST_RECENT_COMPLETIONS[item.label]
+        item.detail = f"{completion.name}: {completion.type}"
+        item.documentation = completion.docstring()
+
+    return item
 
 
 @server.feature(TEXT_DOCUMENT_HOVER)
