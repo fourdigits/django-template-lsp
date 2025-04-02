@@ -448,12 +448,7 @@ def completion_item_resolve(ls: DjangoTemplateLanguageServer, item: CompletionIt
     logger.info(f"COMMAND: {COMPLETION_ITEM_RESOLVE}")
     logger.debug(f"PARAMS: {item}")
 
-    if not item.documentation:
-        completion = _MOST_RECENT_COMPLETIONS[item.label]
-        item.detail = f"{completion.name}: {completion.type}"
-        item.documentation = completion.docstring()
-
-    return item
+    return TemplateParser.resolve_completion(item)
 
 
 @server.feature(TEXT_DOCUMENT_HOVER)

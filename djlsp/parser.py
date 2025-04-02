@@ -547,6 +547,15 @@ class TemplateParser:
                 if var_name.startswith(prefix)
             ]
 
+    @staticmethod
+    def resolve_completion(item: CompletionItem):
+        if not item.documentation:
+            completion = _MOST_RECENT_COMPLETIONS[item.label]
+            item.detail = f"({completion.type}) {completion.name}"
+            item.documentation = completion.docstring()
+
+        return item
+
     ###################################################################################
     # Hover
     ###################################################################################
