@@ -37,7 +37,7 @@ from pygls.server import LanguageServer
 from djlsp import __version__
 from djlsp.constants import FALLBACK_DJANGO_DATA
 from djlsp.index import WorkspaceIndex
-from djlsp.parser import TemplateParser
+from djlsp.parser import TemplateParser, _MOST_RECENT_COMPLETIONS
 
 logger = logging.getLogger(__name__)
 
@@ -447,8 +447,6 @@ def completion_item_resolve(ls: DjangoTemplateLanguageServer, item: CompletionIt
     logger.debug(f"PARAMS: {item}")
 
     if not item.documentation:
-        logger.debug(f"Existing documentation: {item.documentation} {item}")
-        from .parser import _MOST_RECENT_COMPLETIONS
         completion = _MOST_RECENT_COMPLETIONS[item.label]
         item.detail = f"{completion.name}: {completion.type}"
         item.documentation = completion.docstring()
