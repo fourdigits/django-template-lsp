@@ -13,11 +13,13 @@ from functools import cached_property
 
 import jedi
 from lsprotocol.types import (
+    COMPLETION_ITEM_RESOLVE,
     INITIALIZE,
     TEXT_DOCUMENT_COMPLETION,
     TEXT_DOCUMENT_DEFINITION,
     TEXT_DOCUMENT_HOVER,
     WORKSPACE_DID_CHANGE_WATCHED_FILES,
+    CompletionItem,
     CompletionList,
     CompletionOptions,
     CompletionParams,
@@ -35,7 +37,7 @@ from pygls.server import LanguageServer
 from djlsp import __version__
 from djlsp.constants import FALLBACK_DJANGO_DATA
 from djlsp.index import WorkspaceIndex
-from djlsp.parser import TemplateParser
+from djlsp.parser import TemplateParser, clear_completions_cache
 
 logger = logging.getLogger(__name__)
 
@@ -420,11 +422,15 @@ def initialized(ls: DjangoTemplateLanguageServer, params: InitializeParams):
 
 @server.feature(
     TEXT_DOCUMENT_COMPLETION,
-    CompletionOptions(trigger_characters=[" ", "|", "'", '"', "."]),
+    CompletionOptions(
+        trigger_characters=[" ", "|", "'", '"', "."], resolve_provider=True
+    ),
 )
 def completions(ls: DjangoTemplateLanguageServer, params: CompletionParams):
     logger.info(f"COMMAND: {TEXT_DOCUMENT_COMPLETION}")
     logger.debug(f"PARAMS: {params}")
+
+    clear_completions_cache()
     try:
         return CompletionList(
             is_incomplete=False,
@@ -436,7 +442,15 @@ def completions(ls: DjangoTemplateLanguageServer, params: CompletionParams):
         )
     except Exception as e:
         logger.error(e)
-        return CompletionList(items=[])
+        return None
+
+
+@server.feature(COMPLETION_ITEM_RESOLVE)
+def completion_item_resolve(ls: DjangoTemplateLanguageServer, item: CompletionItem):
+    logger.info(f"COMMAND: {COMPLETION_ITEM_RESOLVE}")
+    logger.debug(f"PARAMS: {item}")
+
+    return TemplateParser.resolve_completion(item)
 
 
 @server.feature(TEXT_DOCUMENT_HOVER)

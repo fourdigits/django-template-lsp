@@ -53,7 +53,12 @@ def create_parser(source) -> TemplateParser:
                 "blog/list.html": {
                     "path": "src:templates/blog/list.html",
                     "extends": "base.html",
-                    "context": {"blog": None},
+                    "context": {
+                        "blog": {
+                            "type": "list[str]",
+                            "docs": "This is a doc for the blog context variable",
+                        }
+                    },
                 },
             },
         }
@@ -192,15 +197,88 @@ def test_completion_context_with_same_symbol_name():
 
 
 @pytest.mark.parametrize(
-    "typ,completion,results",
+    "code,cursor,result,detail,doc",
     [
-        ("abc: list[str]", "{{ abc.0.", "capitalize"),
-        ("abc: list[jedi.Script] | dict[str, jedi.Script]", "{{ abc.0.", "complete"),
+        (
+            "{# type abc: list[str] #}\n{{ abc.0.",
+            (1, 9),
+            "capitalize",
+            "(function) capitalize",
+            "capitalize() -> str\n\nReturn a capitalized version of the string.",
+        ),
+        (
+            "{# type abc: list[jedi.Script] | dict[str, jedi.Script] #}\n{{ abc.0.",
+            (1, 9),
+            "complete",
+            "(function) complete",
+            "",
+        ),
+        (
+            "{{ blo",
+            (0, 6),
+            "blog",
+            "blog: list[str]",
+            "This is a doc for the blog context variable",
+        ),
+        (
+            "{# type test_dict: dict[str, str] #}\n"
+            "{% for k, v in test_dict.items %}\n{{ k.",
+            (2, 5),
+            "capitalize",
+            "(function) capitalize",
+            "",
+        ),
     ],
 )
-def test_completion_context_advanced(typ, completion, results):
-    parser = create_parser("{# type " + typ + " #}\n" + completion)
-    assert any(item.label == results for item in parser.completions(1, len(completion)))
+def test_completion_context_advanced(code, cursor, result, detail, doc):
+    parser = create_parser(code)
+    found = False
+    for item in parser.completions(*cursor):
+        item = parser.resolve_completion(item)
+        if (
+            item.label == result
+            and item.detail == detail
+            and item.documentation.startswith(doc)
+        ):
+            found = True
+            break
+
+    assert found
+
+
+def test_completion_context_scoped():
+    base = "\n".join(
+        [
+            "{# type test_dict: dict[str, list[str]] #}",
+            "{% with test_dict_alias=test_dict%}",
+            "    {% for a in test_dict_alias %}",
+            "        {% for k,v in test_dict.items %}",
+            "            {% for e in v %}",
+            "                {{ e }}",
+            "            {% endfor %}",
+            "",
+            "            {% for world in v %}",
+            "{{ ",
+        ]
+    )
+    completed_base = (
+        base + " world }}\n{% endfor %}\n{% endfor %}\n{% endfor %}\n{% endwith %}"
+    )
+
+    assert not any(
+        item.label == "e" for item in create_parser(base).completions(9, 3)
+    ), "do not recommend out of scope variables"
+    assert not any(
+        item.label == "forloop"
+        for item in create_parser(completed_base + "\n{{ ").completions(14, 3)
+    ), "do not complete for loop outside of foor loop"
+    assert any(
+        item.label == "capitalize"
+        for item in create_parser(base + "world.").completions(9, 9)
+    ), "recommend correct variables for scope and support intelisense"
+    assert any(
+        item.label == "forloop" for item in create_parser(base).completions(9, 3)
+    ), "test that django forloop variable is precense in foor loop"
 
 
 ###################################################################################
@@ -231,7 +309,31 @@ def test_hover_context():
     parser = create_parser("{# type news: str #}\n{{ news }}")
     hover = parser.hover(1, 4)
     assert hover is not None
-    assert hover.contents.startswith("(class) news: Type[str]\n\nstr(o: object=...)")
+    assert hover.contents == "(variable) news: str"
+
+
+def test_hover_context_docs():
+    parser = create_parser("{{ blog }}")
+    hover = parser.hover(0, 4)
+    assert hover is not None
+    assert (
+        hover.contents
+        == "(variable) blog: list[str]\n\nThis is a doc for the blog context variable"
+    )
+
+
+def test_hover_context_function():
+    parser = create_parser("{# type test_str: str #}\n{{ test_str.capitalize")
+    hover = parser.hover(1, 17)
+    assert hover is not None
+    assert hover.contents.startswith("(function) capitalize: capitalize(self) -> str")
+
+
+def test_hover_context_forloop():
+    parser = create_parser("{# type test_str: list[str] #}\n{% for abc in test_str %}")
+    hover = parser.hover(1, 9)
+    assert hover is not None
+    assert hover.contents == "(statement) abc: str"
 
 
 ###################################################################################
