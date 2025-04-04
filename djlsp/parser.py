@@ -28,10 +28,6 @@ RE_TAGS_NO_CONTEXT = re.compile(r"{% ?(end.*|comment|csrf_token|debug|spaceless)
 _MOST_RECENT_COMPLETIONS: dict[str, Completion] = {}
 
 
-def clear_completions_cache():
-    _MOST_RECENT_COMPLETIONS.clear()
-
-
 class TemplateParser:
 
     def __init__(
@@ -557,6 +553,10 @@ class TemplateParser:
             item.documentation = completion.docstring()
 
         return item
+
+    @staticmethod
+    def clear_completions_cache():
+        _MOST_RECENT_COMPLETIONS.clear()
 
     ###################################################################################
     # Hover

@@ -429,6 +429,8 @@ def initialized(ls: DjangoTemplateLanguageServer, params: InitializeParams):
 def completions(ls: DjangoTemplateLanguageServer, params: CompletionParams):
     logger.info(f"COMMAND: {TEXT_DOCUMENT_COMPLETION}")
     logger.debug(f"PARAMS: {params}")
+
+    TemplateParser.clear_completions_cache()
     try:
         return CompletionList(
             is_incomplete=False,
