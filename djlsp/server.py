@@ -37,7 +37,7 @@ from pygls.server import LanguageServer
 from djlsp import __version__
 from djlsp.constants import FALLBACK_DJANGO_DATA
 from djlsp.index import WorkspaceIndex
-from djlsp.parser import TemplateParser
+from djlsp.parser import TemplateParser, clear_completions_cache
 
 logger = logging.getLogger(__name__)
 
@@ -430,7 +430,7 @@ def completions(ls: DjangoTemplateLanguageServer, params: CompletionParams):
     logger.info(f"COMMAND: {TEXT_DOCUMENT_COMPLETION}")
     logger.debug(f"PARAMS: {params}")
 
-    TemplateParser.clear_completions_cache()
+    clear_completions_cache()
     try:
         return CompletionList(
             is_incomplete=False,
