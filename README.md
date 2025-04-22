@@ -27,8 +27,8 @@ This LSP supports:
 
 ## Support (tested)
 
-- Python: 3.10, 3.11, 3.12
-- Django: 3.2, 4.2, 5.0
+- Python: 3.10, 3.11, 3.12, 3.13
+- Django: 4.2, 5.0, 5.1, 5.2
 
 
 ## Installation
