@@ -18,6 +18,11 @@ def main():
     )
     parser.add_argument("--enable-log", action="store_true")
     parser.add_argument(
+        "--env-directory",
+        action="append",
+        help="Env directory to check, can be relative or absolute path",
+    )
+    parser.add_argument(
         "--docker-compose-file",
         type=str,
         default="docker-compose.yml",
@@ -51,6 +56,7 @@ def main():
     args = parser.parse_args()
 
     initialization_options = {
+        "env_directories": args.env_directory,
         "docker_compose_file": args.docker_compose_file,
         "docker_compose_service": args.docker_compose_service,
         "django_settings_module": args.django_settings_module,

@@ -48,19 +48,20 @@ DJANGO_COLLECTOR_SCRIPT_PATH = os.path.join(
     "django-collector.py",
 )
 
+DEFAULT_ENV_DIRECTORIES = [
+    "env",
+    ".env",
+    "venv",
+    ".venv",
+]
+
 
 class DjangoTemplateLanguageServer(LanguageServer):
-    ENV_DIRECTORIES = [
-        "env",
-        ".env",
-        "venv",
-        ".venv",
-    ]
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.file_watcher_id = str(uuid.uuid4())
         self.current_file_watcher_globs = []
+        self.env_directories = DEFAULT_ENV_DIRECTORIES
         self.docker_compose_file = "docker-compose.yml"
         self.docker_compose_service = "django"
         self.django_settings_module = ""
@@ -81,17 +82,26 @@ class DjangoTemplateLanguageServer(LanguageServer):
 
     @cached_property
     def project_env_path(self):
-        for env_dir in self.ENV_DIRECTORIES:
-            if os.path.exists(
-                os.path.join(self.workspace.root_path, env_dir, "bin", "python")
-            ):
-                return os.path.join(self.workspace.root_path, env_dir)
+        for env_dir in self.env_directories:
+            env_path = (
+                env_dir
+                if os.path.isabs(env_dir)
+                else os.path.join(self.workspace.root_path, env_dir)
+            )
+            if os.path.exists(os.path.join(env_path, "bin", "python")):
+                return os.path.join(env_path)
 
     @property
     def docker_compose_path(self):
         return os.path.join(self.workspace.root_path, self.docker_compose_file)
 
     def set_initialization_options(self, options: dict):
+        env_directories = options.get("env_directories", self.env_directories)
+        self.env_directories = (
+            list(map(str, env_directories))
+            if isinstance(env_directories, list)
+            else self.env_directories
+        )
         self.docker_compose_file = options.get(
             "docker_compose_file", self.docker_compose_file
         )
