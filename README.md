@@ -46,6 +46,7 @@ Once installed, the Django template LSP server is accessible via the following c
 
 ## Options
 
+- `env_directories` (list[string]) default (list of relative or absolute paths): ["env", ".env", "venv", ".venv"]
 - `docker_compose_file` (string) default: "docker-compose.yml"
 - `docker_compose_service` (string) default: "django"
 - `django_settings_module` (string) default (auto detected when empty): ""
