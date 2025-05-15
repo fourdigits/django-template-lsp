@@ -1,3 +1,5 @@
+![icon](vscode/icon.png)
+
 # Django Template LSP server
 
 The Django Template LSP server enhances your Django development
