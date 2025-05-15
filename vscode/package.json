@@ -1,9 +1,11 @@
 {
 	"name": "djlsp",
-	"description": "A django template lsp client",
+	"displayName": "Django Template LSP (djlsp)",
+	"description": "The Django Template LSP server enhances your Django development experience with powerful features for navigating and editing template files.",
+	"icon": "icon.png",
 	"author": "Four Digits",
 	"license": "GPL3",
-	"version": "0.0.3",
+	"version": "1.0.0",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/fourdigits/django-template-lsp"
