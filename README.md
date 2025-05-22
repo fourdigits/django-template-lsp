@@ -1,6 +1,7 @@
-![icon](vscode/icon.png)
-
-# Django Template LSP server
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/b362a5d6-c124-4751-b7d8-ce715c14ab97" width="128" height="128"/>
+</p>
+<h1 align="center">Django Template LSP server</h1>
 
 The Django Template LSP server enhances your Django development
 experience with powerful features for navigating and editing template files.
@@ -123,7 +124,7 @@ To use the Django template LSP with VSCode read the following [readme](vscode/RE
 
 ## Development
 
-For local development, using [Helix](https://helix-editor.com) is the easiest approach.  
+For local development, using [Helix](https://helix-editor.com) is the easiest approach.
 The configuration for using the source Django template language server, with logging enabled, is already set up.
 
 To start the Helix editor with the environment activated and the correct workspace loaded, run:
@@ -157,4 +158,3 @@ require("lspconfig").djlsp.setup({
         cmd = { "/path/to/django-template-lsp/.venv/bin/djlsp", "--enable-log" },
 })
 ```
-
