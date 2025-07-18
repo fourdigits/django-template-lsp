@@ -88,12 +88,9 @@ type hint support is provided directly in the template files:
 In your global or project `languages.toml` add the following
 
 ```toml
-[language-server.djlsp]
-command = "djlsp"
-
 [[language]]
-name = "html"
-language-servers = [ "vscode-html-language-server", "djlsp" ]
+name = "htmldjango"
+file-types = ["html"]
 ```
 
 Project settings `.helix/languages.toml`:
