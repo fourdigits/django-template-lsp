@@ -97,7 +97,7 @@ Project settings `.helix/languages.toml`:
 
 ```toml
 [language-server.djlsp.config]
-django_settings_modules="<your.settings.module>"
+django_settings_module="<your.settings.module>"
 ```
 
 ### Neovim
