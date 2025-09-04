@@ -3,7 +3,7 @@ command = "djlsp"
 args = ["--enable-log", "--cache"]
 
 [language-server.djlsp.config]
-django_settings_modules="django_test.settings"
+django_settings_module="django_test.settings"
 
 [[language]]
 name = "html"
