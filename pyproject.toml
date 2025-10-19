@@ -18,7 +18,7 @@ classifiers = [
 ]
 keywords = ["django", "template", "lsp", "python"]
 dependencies = [
-    "pygls",
+    "pygls>=1.0.0,<2.0.0",
     "jedi"
 ]
 requires-python = ">=3.9"
