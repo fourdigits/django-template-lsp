@@ -58,7 +58,7 @@ export function activate(context: ExtensionContext) {
 		throw new Error('No workspace folder is open');
 	}
 	const workspaceFolder = workspaceFolders[0];
-	const workspaceFolderPath = workspaceFolder.uri.path;
+	const workspaceFolderPath = workspaceFolder.uri.fsPath;
 
 	const serverOptions = () => {
 		const djlspProcess = spawn(djlspPath, djlspArgs, {
