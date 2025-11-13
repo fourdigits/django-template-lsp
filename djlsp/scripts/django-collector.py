@@ -262,6 +262,8 @@ class DjangoIndexCollector:
         ]
 
         for static_path in settings.STATICFILES_DIRS:
+            if isinstance(static_path, tuple):
+                static_path = static_path[1]
             static_folder = os.path.basename(static_path)
             if static_folder != "static":
                 patterns.append(f"**/{static_folder}/**")
