@@ -15,6 +15,7 @@ from lsprotocol.types import (
     Location,
     Position,
     Range,
+    TextEdit,
 )
 from pygls.workspace import TextDocument
 
@@ -330,7 +331,8 @@ class TemplateParser:
                         ),
                     )
                 )
-        return []
+        # Check CSS
+        return self.get_css_class_name_completions(line, character)
 
     def get_load_completions(self, match: Match, **kwargs):
         prefix = match.group(1).split(" ")[-1]
@@ -557,6 +559,58 @@ class TemplateParser:
             item.documentation = completion.docstring()
 
         return item
+
+    def _absolute_index_to_position(self, index: int) -> Position:
+        """Translate an absolute character index into an LSP `Position`."""
+        running_total = 0
+        for line_no, text in enumerate(self.document.lines):
+            line_length = len(text)
+            if index <= running_total + line_length:
+                return Position(line=line_no, character=index - running_total)
+            running_total += line_length
+        # Fallback to end of document if index is out of bounds
+        last_line = len(self.document.lines) - 1
+        last_char = len(self.document.lines[last_line]) if last_line >= 0 else 0
+        return Position(line=last_line, character=last_char)
+
+    def get_css_class_name_completions(self, line, character):
+        # Flatten text to one line and remove Django template
+        one_line_html = "".join(self.document.lines)
+        one_line_html = re.sub(
+            r"\{\%.*?\%\}", lambda m: " " * len(m.group(0)), one_line_html
+        )
+        one_line_html = re.sub(
+            r"\{\{.*?\}\}", lambda m: " " * len(m.group(0)), one_line_html
+        )
+
+        abs_position = sum(len(self.document.lines[i]) for i in range(line)) + character
+        class_attr_pattern = re.compile(r'class=["\']([^"\']*)["\']', re.DOTALL)
+
+        for match in class_attr_pattern.finditer(one_line_html):
+            start_idx, end_idx = match.span(1)
+
+            if start_idx <= abs_position <= end_idx:
+                class_value = match.group(1)
+                relative_pos = abs_position - start_idx
+
+                prefix_match = re.search(r"\b[\w-]*$", class_value[:relative_pos])
+                prefix = prefix_match.group(0) if prefix_match else ""
+
+                start_index = abs_position - len(prefix)
+                start_position = self._absolute_index_to_position(start_index)
+                end_position = self._absolute_index_to_position(abs_position)
+                replace_range = Range(start=start_position, end=end_position)
+
+                return [
+                    CompletionItem(
+                        label=class_name,
+                        text_edit=TextEdit(range=replace_range, new_text=class_name),
+                    )
+                    for class_name in self.workspace_index.css_class_names
+                    if class_name.startswith(prefix)
+                ]
+
+        return []
 
     ###################################################################################
     # Hover

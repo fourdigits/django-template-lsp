@@ -196,6 +196,7 @@ class DjangoIndexCollector:
         self.libraries = {}
         self.templates: dict[str, Template] = {}
         self.global_template_context = {}
+        self.css_class_names = []
 
     def collect(self):
         self.file_watcher_globs = self.get_file_watcher_globs()
@@ -204,6 +205,7 @@ class DjangoIndexCollector:
         self.urls = self.get_urls()
         self.libraries = self.get_libraries()
         self.global_template_context = self.get_global_template_context()
+        self.css_class_names = self.get_css_class_names()
 
         # Third party collectors
         self.collect_for_wagtail()
@@ -217,6 +219,7 @@ class DjangoIndexCollector:
                 "libraries": self.libraries,
                 "templates": self.templates,
                 "global_template_context": self.global_template_context,
+                "css_class_names": self.css_class_names,
             },
             indent=4,
         )
@@ -574,6 +577,23 @@ class DjangoIndexCollector:
                     self.templates[model.template]["context"][
                         model.context_object_name
                     ] = (model.__module__ + "." + model.__name__)
+
+    # CSS class names
+    # ---------------------------------------------------------------------------------
+    def get_css_class_names(self):
+        class_pattern = re.compile(r"\.(?!\d)([a-zA-Z0-9_-]+)")
+        class_names = set()
+
+        for finder in get_finders():
+            for path, file_storage in finder.list(None):
+                if path.endswith(".css") and not path.startswith("admin"):
+                    try:
+                        with file_storage.open(path, "r") as f:
+                            content = f.read()
+                            class_names.update(class_pattern.findall(content))
+                    except Exception as e:
+                        logger.error(f"Could not parse CSS file: {e}")
+        return list(class_names)
 
 
 #######################################################################################
