@@ -167,9 +167,7 @@ class TemplateParser:
 
         script_lines = []
         if re.search(r"{% ?for ", self.document.source):
-            script_lines.append(
-                dedent(
-                    '''
+            script_lines.append(dedent('''
                     class _DjangoForLoop:
                         """Django for loop context"""
                         counter: int
@@ -179,9 +177,7 @@ class TemplateParser:
                         first: bool
                         last: bool
                         parentloop: "_DjangoForLoop"
-                    '''
-                )
-            )
+                    '''))
 
         for variable_name, variable in context.items():
             if variable.type:
