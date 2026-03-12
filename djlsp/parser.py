@@ -100,6 +100,9 @@ class TemplateParser:
                     stack.append((tag_name, match))
                     break
                 elif match := re_end.match(src_line):
+                    if not stack:
+                        logger.debug("Closing tag has no matching opening tag")
+                        break
                     found_tag, _ = stack.pop()
                     if found_tag != tag_name:
                         # TODO: show warning to user

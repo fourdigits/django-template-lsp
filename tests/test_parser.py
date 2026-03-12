@@ -281,6 +281,24 @@ def test_completion_context_scoped():
     ), "test that django forloop variable is precense in foor loop"
 
 
+def test_completion_context_unmatched_endfor_does_not_crash():
+    parser = create_parser("{% endfor %}\n{{ ")
+    completions = parser.completions(1, 3)
+    assert isinstance(completions, list)
+
+
+def test_completion_context_unmatched_endwith_does_not_crash():
+    parser = create_parser("{% endwith %}\n{{ ")
+    completions = parser.completions(1, 3)
+    assert isinstance(completions, list)
+
+
+def test_completion_context_mismatched_closing_tag_does_not_crash():
+    parser = create_parser("{% for x in blog %}\n{% endwith %}\n{{ ")
+    completions = parser.completions(2, 3)
+    assert isinstance(completions, list)
+
+
 ###################################################################################
 # Hovers
 ###################################################################################
