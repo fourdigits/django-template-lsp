@@ -19,13 +19,12 @@ $(ENV):
 develop: $(ENV)
 
 fix-codestyle:
-	$(BIN)/black $(CODE_LOCATIONS)
-	$(BIN)/isort $(CODE_LOCATIONS)
+	$(BIN)/ruff check --fix $(CODE_LOCATIONS)
+	$(BIN)/ruff format $(CODE_LOCATIONS)
 
 lint:
-	$(BIN)/black --check $(CODE_LOCATIONS)
-	$(BIN)/isort --check-only $(CODE_LOCATIONS)
-	$(BIN)/flake8 $(CODE_LOCATIONS)
+	$(BIN)/ruff check $(CODE_LOCATIONS)
+	$(BIN)/ruff format --check $(CODE_LOCATIONS)
 
 test: lint
 	$(BIN)/tox run
