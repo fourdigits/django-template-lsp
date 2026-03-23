@@ -7,16 +7,24 @@ import jedi
 from lsprotocol.types import (
     COMPLETION_ITEM_RESOLVE,
     INITIALIZE,
+    TEXT_DOCUMENT_CODE_ACTION,
     TEXT_DOCUMENT_COMPLETION,
     TEXT_DOCUMENT_DEFINITION,
+    TEXT_DOCUMENT_DID_CHANGE,
+    TEXT_DOCUMENT_DID_OPEN,
+    TEXT_DOCUMENT_DID_SAVE,
     TEXT_DOCUMENT_HOVER,
     WORKSPACE_DID_CHANGE_WATCHED_FILES,
+    CodeActionParams,
     CompletionItem,
     CompletionList,
     CompletionOptions,
     CompletionParams,
     DefinitionParams,
+    DidChangeTextDocumentParams,
     DidChangeWatchedFilesParams,
+    DidOpenTextDocumentParams,
+    DidSaveTextDocumentParams,
     HoverParams,
     InitializeParams,
 )
@@ -209,6 +217,23 @@ class DjangoTemplateLanguageServer(LanguageServer):
 server = DjangoTemplateLanguageServer("django-template-lsp", __version__)
 
 
+def _plugin_context(ls: DjangoTemplateLanguageServer, uri: str) -> PluginContext:
+    return PluginContext(
+        workspace_index=ls.workspace_index,
+        jedi_project=ls.jedi_project,
+        document=ls.workspace.get_document(uri),
+    )
+
+
+def _publish_plugin_diagnostics(ls: DjangoTemplateLanguageServer, uri: str):
+    try:
+        context = _plugin_context(ls, uri)
+        diagnostics = ls.plugin_manager.diagnostics(context)
+        ls.publish_diagnostics(uri, diagnostics)
+    except Exception as e:
+        logger.error(e)
+
+
 @server.feature(INITIALIZE)
 def initialized(ls: DjangoTemplateLanguageServer, params: InitializeParams):
     logger.info(f"COMMAND: {INITIALIZE}")
@@ -232,11 +257,7 @@ def completions(ls: DjangoTemplateLanguageServer, params: CompletionParams):
 
     clear_completions_cache()
     try:
-        context = PluginContext(
-            workspace_index=ls.workspace_index,
-            jedi_project=ls.jedi_project,
-            document=ls.workspace.get_document(params.text_document.uri),
-        )
+        context = _plugin_context(ls, params.text_document.uri)
         return CompletionList(
             is_incomplete=False,
             items=ls.plugin_manager.completions(
@@ -263,11 +284,7 @@ def hover(ls: DjangoTemplateLanguageServer, params: HoverParams):
     logger.info(f"COMMAND: {TEXT_DOCUMENT_HOVER}")
     logger.debug(f"PARAMS: {params}")
     try:
-        context = PluginContext(
-            workspace_index=ls.workspace_index,
-            jedi_project=ls.jedi_project,
-            document=ls.workspace.get_document(params.text_document.uri),
-        )
+        context = _plugin_context(ls, params.text_document.uri)
         return ls.plugin_manager.hover(
             context,
             line=params.position.line,
@@ -283,16 +300,45 @@ def goto_definition(ls: DjangoTemplateLanguageServer, params: DefinitionParams):
     logger.info(f"COMMAND: {TEXT_DOCUMENT_DEFINITION}")
     logger.debug(f"PARAMS: {params}")
     try:
-        context = PluginContext(
-            workspace_index=ls.workspace_index,
-            jedi_project=ls.jedi_project,
-            document=ls.workspace.get_document(params.text_document.uri),
-        )
+        context = _plugin_context(ls, params.text_document.uri)
         return ls.plugin_manager.definition(
             context,
             line=params.position.line,
             character=params.position.character,
         )
+    except Exception as e:
+        logger.error(e)
+        return None
+
+
+@server.feature(TEXT_DOCUMENT_DID_OPEN)
+def did_open(ls: DjangoTemplateLanguageServer, params: DidOpenTextDocumentParams):
+    logger.info(f"COMMAND: {TEXT_DOCUMENT_DID_OPEN}")
+    logger.debug(f"PARAMS: {params}")
+    _publish_plugin_diagnostics(ls, params.text_document.uri)
+
+
+@server.feature(TEXT_DOCUMENT_DID_CHANGE)
+def did_change(ls: DjangoTemplateLanguageServer, params: DidChangeTextDocumentParams):
+    logger.info(f"COMMAND: {TEXT_DOCUMENT_DID_CHANGE}")
+    logger.debug(f"PARAMS: {params}")
+    _publish_plugin_diagnostics(ls, params.text_document.uri)
+
+
+@server.feature(TEXT_DOCUMENT_DID_SAVE)
+def did_save(ls: DjangoTemplateLanguageServer, params: DidSaveTextDocumentParams):
+    logger.info(f"COMMAND: {TEXT_DOCUMENT_DID_SAVE}")
+    logger.debug(f"PARAMS: {params}")
+    _publish_plugin_diagnostics(ls, params.text_document.uri)
+
+
+@server.feature(TEXT_DOCUMENT_CODE_ACTION)
+def code_action(ls: DjangoTemplateLanguageServer, params: CodeActionParams):
+    logger.info(f"COMMAND: {TEXT_DOCUMENT_CODE_ACTION}")
+    logger.debug(f"PARAMS: {params}")
+    try:
+        context = _plugin_context(ls, params.text_document.uri)
+        return ls.plugin_manager.code_actions(context, params=params)
     except Exception as e:
         logger.error(e)
         return None

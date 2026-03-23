@@ -1,7 +1,14 @@
 from dataclasses import dataclass, field
 
 import jedi
-from lsprotocol.types import CompletionItem, Hover, Location
+from lsprotocol.types import (
+    CodeAction,
+    CodeActionParams,
+    CompletionItem,
+    Diagnostic,
+    Hover,
+    Location,
+)
 from pygls.workspace import TextDocument
 
 from djlsp.index import WorkspaceIndex
@@ -41,8 +48,10 @@ class Plugin:
     def on_completion_resolve(self, item: CompletionItem) -> CompletionItem | None:
         return None
 
-    def on_diagnostics(self, context: PluginContext):
+    def on_diagnostics(self, context: PluginContext) -> list[Diagnostic]:
         return []
 
-    def on_code_actions(self, context: PluginContext):
+    def on_code_actions(
+        self, context: PluginContext, *, params: CodeActionParams
+    ) -> list[CodeAction]:
         return []

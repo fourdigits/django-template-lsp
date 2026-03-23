@@ -1,7 +1,7 @@
 import logging
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
-from lsprotocol.types import CompletionItem
+from lsprotocol.types import CodeAction, CodeActionParams, CompletionItem, Diagnostic
 
 from djlsp.plugins.base import PLUGIN_API_VERSION, Plugin, PluginContext
 
@@ -177,3 +177,59 @@ class PluginManager:
             if resolved is not None:
                 return resolved
         return item
+
+    def diagnostics(self, context: PluginContext) -> list[Diagnostic]:
+        merged: list[Diagnostic] = []
+        seen: set[tuple] = set()
+        for plugin in self._active_plugins():
+            plugin_context = self._plugin_context(plugin, context)
+            diagnostics = self._run_with_guard(
+                plugin,
+                "on_diagnostics",
+                lambda plugin=plugin, plugin_context=plugin_context: (
+                    plugin.on_diagnostics(plugin_context)
+                ),
+                [],
+            )
+            for diagnostic in diagnostics:
+                key = (
+                    diagnostic.range.start.line,
+                    diagnostic.range.start.character,
+                    diagnostic.range.end.line,
+                    diagnostic.range.end.character,
+                    diagnostic.severity,
+                    diagnostic.code,
+                    diagnostic.source,
+                    diagnostic.message,
+                )
+                if key in seen:
+                    continue
+                seen.add(key)
+                merged.append(diagnostic)
+        return merged
+
+    def code_actions(
+        self, context: PluginContext, *, params: CodeActionParams
+    ) -> list[CodeAction]:
+        merged: list[CodeAction] = []
+        seen: set[tuple] = set()
+        for plugin in self._active_plugins():
+            plugin_context = self._plugin_context(plugin, context)
+            actions = self._run_with_guard(
+                plugin,
+                "on_code_actions",
+                lambda plugin=plugin, plugin_context=plugin_context: (
+                    plugin.on_code_actions(
+                        plugin_context,
+                        params=params,
+                    )
+                ),
+                [],
+            )
+            for action in actions:
+                key = (action.title, action.kind)
+                if key in seen:
+                    continue
+                seen.add(key)
+                merged.append(action)
+        return merged
