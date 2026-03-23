@@ -40,6 +40,7 @@ from djlsp.index import WorkspaceIndex
 from djlsp.parser import clear_completions_cache
 from djlsp.plugins import (
     CoreTemplatePlugin,
+    DjangoSettingsPlugin,
     DjangoUrlsPlugin,
     PluginContext,
     PluginManager,
@@ -89,7 +90,7 @@ class DjangoTemplateLanguageServer(LanguageServer):
         self.watcher_service = WatcherService()
         self.version_check_service = VersionCheckService()
         self.plugin_manager = PluginManager(
-            plugins=[CoreTemplatePlugin(), DjangoUrlsPlugin()]
+            plugins=[CoreTemplatePlugin(), DjangoUrlsPlugin(), DjangoSettingsPlugin()]
         )
 
     @cached_property
