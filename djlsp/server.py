@@ -118,12 +118,17 @@ class DjangoTemplateLanguageServer(LanguageServer):
                 ", upgrade with `pipx upgrade django-template-lsp`"
             )
 
-    def get_django_data(self, update_file_watcher=True):
+    def get_django_data(self, update_file_watcher=True, changed_kinds=None):
         self.workspace_index.src_path = self.project_src_path
         self.workspace_index.env_path = self.project_env_path
         self.jedi_project = jedi.Project(
             path=self.project_src_path, environment_path=self.project_env_path
         )
+
+        if changed_kinds:
+            logger.debug(
+                "File watcher triggered recollect for change kinds: %s", changed_kinds
+            )
 
         result = self.collector_runner.collect(
             CollectorRequest(
@@ -255,4 +260,7 @@ def files_changed(
 ):
     logger.info(f"COMMAND: {WORKSPACE_DID_CHANGE_WATCHED_FILES}")
     logger.debug(f"PARAMS: {params}")
-    ls.get_django_data()
+    ls.watcher_service.schedule_collection(
+        lambda change_kinds: ls.get_django_data(changed_kinds=change_kinds),
+        params.changes,
+    )
