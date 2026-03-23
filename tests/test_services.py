@@ -88,6 +88,45 @@ def test_cache_service_invalidates_when_watched_files_change(tmp_path):
     assert service.load(request) is None
 
 
+def test_cache_service_ignores_non_mapping_cache_payload(tmp_path):
+    cache_path = tmp_path / "cache.json"
+    cache_path.write_text('["invalid"]')
+    request = CollectorRequest(
+        workspace_root=str(tmp_path),
+        project_src_path=str(tmp_path),
+        project_env_path=None,
+        docker_compose_path=str(tmp_path / "docker-compose.yml"),
+        cache=str(cache_path),
+    )
+    service = CacheService(collector_script_path=DJANGO_COLLECTOR_SCRIPT_PATH)
+
+    assert service.load(request) is None
+
+
+def test_cache_service_invalidates_when_collector_script_changes(tmp_path):
+    src_path = tmp_path / "src"
+    src_path.mkdir()
+    collector_script = tmp_path / "collector.py"
+    collector_script.write_text("print('collector')")
+    cache_path = tmp_path / "cache.json"
+    request = CollectorRequest(
+        workspace_root=str(tmp_path),
+        project_src_path=str(src_path),
+        project_env_path=None,
+        docker_compose_path=str(tmp_path / "docker-compose.yml"),
+        cache=str(cache_path),
+    )
+    django_data = {"file_watcher_globs": [], "libraries": {}}
+    service = CacheService(collector_script_path=str(collector_script))
+
+    service.store(request, django_data)
+    assert service.load(request) is not None
+
+    next_timestamp = time.time() + 5
+    os.utime(collector_script, (next_timestamp, next_timestamp))
+    assert service.load(request) is None
+
+
 def test_watcher_service_updates_registration_once():
     service = WatcherService()
 

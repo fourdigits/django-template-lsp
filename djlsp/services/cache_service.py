@@ -27,6 +27,9 @@ class CacheService:
         except Exception:
             logger.warning("Cannot read cachefile: %s", cache_path, exc_info=True)
             return None
+        if not isinstance(django_data, dict):
+            logger.warning("Cachefile has invalid payload type: %s", type(django_data))
+            return None
 
         prev_hash = django_data.get("_hash")
         current_hash = self.get_cache_file_hash(request, django_data)
