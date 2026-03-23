@@ -24,6 +24,8 @@ from django.views.generic.detail import SingleObjectMixin
 from django.views.generic.edit import FormMixin
 from django.views.generic.list import MultipleObjectMixin
 
+from djlsp.ast_context_collector import AstContextCollector
+
 logger = logging.getLogger(__name__)
 
 # Some tags are added with a Node, like end*, elif else.
@@ -188,6 +190,7 @@ class DjangoIndexCollector:
 
     def __init__(self, project_src_path):
         self.project_src_path = project_src_path
+        self.ast_context_collector = AstContextCollector()
 
         # Index data
         self.file_watcher_globs = []
@@ -467,6 +470,9 @@ class DjangoIndexCollector:
             template_name = getattr(view, "template_name", None)
 
         if template_name in self.templates:
+            for key in self.ast_context_collector.extract_context_keys(view):
+                self.templates[template_name]["context"].setdefault(key, None)
+
             if issubclass(view, SingleObjectMixin) and hasattr(view, "model"):
                 context = {"object": self.get_type_full_name(view.model)}
                 try:

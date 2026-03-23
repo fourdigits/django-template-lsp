@@ -45,6 +45,9 @@ def test_django_collect():
 
     assert "django_app.js" in index.static_files
     assert "django_app:index" in index.urls
+    assert "from_ast_assignment" in index.templates["django_app.html"].context
+    assert "from_ast_update" in index.templates["django_app.html"].context
+    assert "from_ast_merge" in index.templates["django_app.html"].context
     assert set(index.file_watcher_globs) == {
         "**/templates/**",
         "**/templatetags/**",

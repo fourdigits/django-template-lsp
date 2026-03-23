@@ -1,9 +1,10 @@
-from django.http import HttpResponse
 from django.urls import path
+
+from django_app.views import DjangoAppTemplateView
 
 app_name = "django_app"
 
 
 urlpatterns = [
-    path("", lambda request: HttpResponse(""), name="index"),
+    path("", DjangoAppTemplateView.as_view(), name="index"),
 ]
