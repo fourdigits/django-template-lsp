@@ -29,7 +29,8 @@ from djlsp.collector_payload import (
 )
 from djlsp.constants import FALLBACK_DJANGO_DATA
 from djlsp.index import WorkspaceIndex
-from djlsp.parser import TemplateParser, clear_completions_cache
+from djlsp.parser import clear_completions_cache
+from djlsp.plugins import CoreTemplatePlugin, PluginContext, PluginManager
 from djlsp.services import (
     DJANGO_COLLECTOR_SCRIPT_PATH,
     CacheService,
@@ -74,6 +75,7 @@ class DjangoTemplateLanguageServer(LanguageServer):
         )
         self.watcher_service = WatcherService()
         self.version_check_service = VersionCheckService()
+        self.plugin_manager = PluginManager(plugins=[CoreTemplatePlugin()])
 
     @cached_property
     def project_src_path(self):
@@ -117,6 +119,7 @@ class DjangoTemplateLanguageServer(LanguageServer):
         )
         self.version_check = options.get("version_check", self.version_check)
         self.cache = options.get("cache", self.cache)
+        self.plugin_manager.configure(options=options.get("plugins"))
 
     def check_version(self):
         if latest_version := self.version_check_service.check_for_upgrade(__version__):
@@ -229,13 +232,18 @@ def completions(ls: DjangoTemplateLanguageServer, params: CompletionParams):
 
     clear_completions_cache()
     try:
+        context = PluginContext(
+            workspace_index=ls.workspace_index,
+            jedi_project=ls.jedi_project,
+            document=ls.workspace.get_document(params.text_document.uri),
+        )
         return CompletionList(
             is_incomplete=False,
-            items=TemplateParser(
-                workspace_index=ls.workspace_index,
-                jedi_project=ls.jedi_project,
-                document=ls.workspace.get_document(params.text_document.uri),
-            ).completions(params.position.line, params.position.character),
+            items=ls.plugin_manager.completions(
+                context,
+                line=params.position.line,
+                character=params.position.character,
+            ),
         )
     except Exception as e:
         logger.error(e)
@@ -247,7 +255,7 @@ def completion_item_resolve(ls: DjangoTemplateLanguageServer, item: CompletionIt
     logger.info(f"COMMAND: {COMPLETION_ITEM_RESOLVE}")
     logger.debug(f"PARAMS: {item}")
 
-    return TemplateParser.resolve_completion(item)
+    return ls.plugin_manager.resolve_completion(item)
 
 
 @server.feature(TEXT_DOCUMENT_HOVER)
@@ -255,11 +263,16 @@ def hover(ls: DjangoTemplateLanguageServer, params: HoverParams):
     logger.info(f"COMMAND: {TEXT_DOCUMENT_HOVER}")
     logger.debug(f"PARAMS: {params}")
     try:
-        return TemplateParser(
+        context = PluginContext(
             workspace_index=ls.workspace_index,
             jedi_project=ls.jedi_project,
             document=ls.workspace.get_document(params.text_document.uri),
-        ).hover(params.position.line, params.position.character)
+        )
+        return ls.plugin_manager.hover(
+            context,
+            line=params.position.line,
+            character=params.position.character,
+        )
     except Exception as e:
         logger.error(e)
         return None
@@ -270,11 +283,16 @@ def goto_definition(ls: DjangoTemplateLanguageServer, params: DefinitionParams):
     logger.info(f"COMMAND: {TEXT_DOCUMENT_DEFINITION}")
     logger.debug(f"PARAMS: {params}")
     try:
-        return TemplateParser(
+        context = PluginContext(
             workspace_index=ls.workspace_index,
             jedi_project=ls.jedi_project,
             document=ls.workspace.get_document(params.text_document.uri),
-        ).goto_definition(params.position.line, params.position.character)
+        )
+        return ls.plugin_manager.definition(
+            context,
+            line=params.position.line,
+            character=params.position.character,
+        )
     except Exception as e:
         logger.error(e)
         return None
