@@ -22,6 +22,10 @@ from lsprotocol.types import (
 from pygls.server import LanguageServer
 
 from djlsp import __version__
+from djlsp.collector_payload import (
+    CollectorPayloadValidationError,
+    validate_collector_payload,
+)
 from djlsp.constants import FALLBACK_DJANGO_DATA
 from djlsp.index import WorkspaceIndex
 from djlsp.parser import TemplateParser, clear_completions_cache
@@ -143,30 +147,45 @@ class DjangoTemplateLanguageServer(LanguageServer):
             )
         )
         django_data = result.django_data
+        has_applied_payload = False
 
         if django_data:
-            self.workspace_index.update(django_data)
-            logger.info(
-                "Collected project Django data%s:",
-                f" from {result.source}" if result.source else "",
-            )
-            logger.info(f" - Libraries: {len(django_data['libraries'])}")
-            logger.info(f" - Templates: {len(django_data['templates'])}")
-            logger.info(f" - Static files: {len(django_data['static_files'])}")
-            logger.info(f" - Urls: {len(django_data['urls'])}")
-            logger.info(
-                f" - Global context: {len(django_data['global_template_context'])}"
-            )
-        else:
-            logger.info("Could not collect project Django data")
-            if not self.is_initialized:
-                # This message is only shown during startup. On save, a full
-                # collect occurs, which may involve partial edits.  To avoid
-                # spamming the user with messages, we provide feedback only
-                # at startup.
-                self.show_message(
-                    "Failed to collect project-specific Django data. Falling back to default Django completions."  # noqa: E501
+            try:
+                validated_payload = validate_collector_payload(django_data)
+            except CollectorPayloadValidationError as exc:
+                logger.error("Invalid collector payload: %s", exc)
+                validated_payload = None
+
+            if not validated_payload:
+                logger.info("Could not apply collected project Django data")
+            else:
+                self.workspace_index.update(validated_payload)
+                has_applied_payload = True
+                logger.info(
+                    "Collected project Django data%s:",
+                    f" from {result.source}" if result.source else "",
                 )
+                logger.info(f" - Libraries: {len(validated_payload['libraries'])}")
+                logger.info(f" - Templates: {len(validated_payload['templates'])}")
+                logger.info(
+                    f" - Static files: {len(validated_payload['static_files'])}"
+                )
+                logger.info(f" - Urls: {len(validated_payload['urls'])}")
+                logger.info(
+                    " - Global context: %s",
+                    len(validated_payload["global_template_context"]),
+                )
+
+        if not has_applied_payload:
+            logger.info("Could not collect project Django data")
+        if not has_applied_payload and not self.is_initialized:
+            # This message is only shown during startup. On save, a full
+            # collect occurs, which may involve partial edits.  To avoid
+            # spamming the user with messages, we provide feedback only
+            # at startup.
+            self.show_message(
+                "Failed to collect project-specific Django data. Falling back to default Django completions."  # noqa: E501
+            )
 
         if update_file_watcher and (
             registration := self.watcher_service.build_registration(
