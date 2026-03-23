@@ -41,6 +41,11 @@ def main():
         help="Django settings module. If left empty, autodetection will be attempted.",
     )
     parser.add_argument(
+        "--disable-version-check",
+        action="store_true",
+        help="Disable checking for newer djlsp versions during startup.",
+    )
+    parser.add_argument(
         "--collect",
         action="store_true",
         help="Attempt to collect Django data and display logs.",
@@ -60,6 +65,7 @@ def main():
         "docker_compose_file": args.docker_compose_file,
         "docker_compose_service": args.docker_compose_service,
         "django_settings_module": args.django_settings_module,
+        "version_check": not args.disable_version_check,
         "cache": args.cache,
     }
 

@@ -1,5 +1,6 @@
 import logging
 import os
+import threading
 from functools import cached_property
 
 import jedi
@@ -56,6 +57,7 @@ class DjangoTemplateLanguageServer(LanguageServer):
         self.docker_compose_file = "docker-compose.yml"
         self.docker_compose_service = "django"
         self.django_settings_module = ""
+        self.version_check = True
         self.cache = False
         self.workspace_index = WorkspaceIndex()
         self.workspace_index.update(FALLBACK_DJANGO_DATA)
@@ -113,6 +115,7 @@ class DjangoTemplateLanguageServer(LanguageServer):
         self.django_settings_module = options.get(
             "django_settings_module", self.django_settings_module
         )
+        self.version_check = options.get("version_check", self.version_check)
         self.cache = options.get("cache", self.cache)
 
     def check_version(self):
@@ -121,6 +124,11 @@ class DjangoTemplateLanguageServer(LanguageServer):
                 f"There is a new version for djlsp ({latest_version})"
                 ", upgrade with `pipx upgrade django-template-lsp`"
             )
+
+    def check_version_async(self):
+        if not self.version_check:
+            return
+        threading.Thread(target=self.check_version, daemon=True).start()
 
     def get_django_data(self, update_file_watcher=True, changed_kinds=None):
         self.workspace_index.src_path = self.project_src_path
@@ -204,7 +212,7 @@ def initialized(ls: DjangoTemplateLanguageServer, params: InitializeParams):
     logger.debug(f"OPTIONS: {params.initialization_options}")
     if params.initialization_options:
         ls.set_initialization_options(params.initialization_options)
-    ls.check_version()
+    ls.check_version_async()
     ls.get_django_data()
     ls.is_initialized = True
 
