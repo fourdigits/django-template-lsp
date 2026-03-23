@@ -299,6 +299,29 @@ def test_completion_context_mismatched_closing_tag_does_not_crash():
     assert isinstance(completions, list)
 
 
+def test_completion_context_mismatched_closing_tag_keeps_outer_scope():
+    parser = create_parser(
+        "{# type blog: list[str] #}\n{% for item in blog %}\n{% endwith %}\n{{ "
+    )
+    completions = parser.completions(3, 3)
+    assert any(item.label == "item" for item in completions)
+    assert any(item.label == "forloop" for item in completions)
+
+
+def test_completion_context_partial_closing_tag_does_not_crash():
+    parser = create_parser("{% for x in blog %}\n{% end\n{{ ")
+    completions = parser.completions(2, 3)
+    assert isinstance(completions, list)
+
+
+def test_completion_context_partial_with_tag_keeps_local_alias():
+    parser = create_parser(
+        "{# type blog: list[str] #}\n{% with first=blog.0 %}\n{{ fir"
+    )
+    completions = parser.completions(2, 6)
+    assert any(item.label == "first" for item in completions)
+
+
 ###################################################################################
 # Hovers
 ###################################################################################
