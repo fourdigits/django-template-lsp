@@ -35,3 +35,21 @@ def test_watcher_service_debounces_and_merges_change_kinds():
 
     assert completed.wait(0.5)
     assert received == [{"python", "template"}]
+
+
+def test_watcher_service_skips_non_actionable_changes():
+    service = WatcherService(debounce_seconds=0.01)
+    completed = Event()
+
+    service.schedule_collection(
+        lambda _change_kinds: completed.set(),
+        [
+            FileEvent(
+                uri="file:///tmp/project/.editorconfig", type=FileChangeType.Changed
+            )
+        ],
+    )
+
+    assert not completed.wait(0.1)
+    assert service.collection_scope({"other"}) == "none"
+    assert service.collection_scope({"python"}) == "full"

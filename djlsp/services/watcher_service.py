@@ -73,6 +73,15 @@ class WatcherService:
                 kinds.add("other")
         return kinds
 
+    def collection_scope(self, change_kinds: set[str]) -> str:
+        actionable_kinds = {"python", "templatetag", "template", "static"}
+        if change_kinds & actionable_kinds:
+            return "full"
+        return "none"
+
+    def should_collect(self, change_kinds: set[str]) -> bool:
+        return self.collection_scope(change_kinds) != "none"
+
     def _flush(self, callback) -> None:
         with self._lock:
             change_kinds = set(self._pending_change_kinds)
@@ -80,4 +89,11 @@ class WatcherService:
             self._timer = None
 
         logger.debug("Debounced file watcher changes: %s", sorted(change_kinds))
-        callback(change_kinds)
+        if self.should_collect(change_kinds):
+            callback(change_kinds)
+            return
+
+        logger.debug(
+            "Skipping collect after file watcher changes (scope=%s)",
+            self.collection_scope(change_kinds),
+        )
