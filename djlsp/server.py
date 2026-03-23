@@ -38,7 +38,12 @@ from djlsp.collector_payload import (
 from djlsp.constants import FALLBACK_DJANGO_DATA
 from djlsp.index import WorkspaceIndex
 from djlsp.parser import clear_completions_cache
-from djlsp.plugins import CoreTemplatePlugin, PluginContext, PluginManager
+from djlsp.plugins import (
+    CoreTemplatePlugin,
+    DjangoUrlsPlugin,
+    PluginContext,
+    PluginManager,
+)
 from djlsp.services import (
     DJANGO_COLLECTOR_SCRIPT_PATH,
     CacheService,
@@ -83,7 +88,9 @@ class DjangoTemplateLanguageServer(LanguageServer):
         )
         self.watcher_service = WatcherService()
         self.version_check_service = VersionCheckService()
-        self.plugin_manager = PluginManager(plugins=[CoreTemplatePlugin()])
+        self.plugin_manager = PluginManager(
+            plugins=[CoreTemplatePlugin(), DjangoUrlsPlugin()]
+        )
 
     @cached_property
     def project_src_path(self):
