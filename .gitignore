@@ -22,6 +22,7 @@ pip-selfcheck.json
 *djlsp.log
 .DS_Store
 .mypy_cache
+.ruff_cache
 .template-version
 .vscode
 .pytest_cache/

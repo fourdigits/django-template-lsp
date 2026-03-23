@@ -30,10 +30,7 @@ django-template-lsp = "djlsp.cli:main"
 [project.optional-dependencies]
 dev = [
     "tox",
-    "black",
-    "isort",
-    "flake8",
-    "flake8-pyproject",
+    "ruff",
     "pytest",
     "pytest-check",
     "pytest-cov",
@@ -52,12 +49,15 @@ include-package-data = false
 [tool.setuptools.packages.find]
 include = ["djlsp*"]
 
-[tool.isort]
-profile = "black"
-known_first_party = "djlsp"
-skip_glob = ["tests/django_test/env/*"]
+[tool.ruff]
+line-length = 88
+exclude = [
+    "tests/django_test/env",
+    ".venv",
+]
 
-[tool.flake8]
-max-line-length = 88
-extend-ignore = "W503"
-exclude = "tests/django_test/env/"
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["djlsp"]

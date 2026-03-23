@@ -573,7 +573,7 @@ class DjangoIndexCollector:
                 if model.context_object_name:
                     self.templates[model.template]["context"][
                         model.context_object_name
-                    ] = (model.__module__ + "." + model.__name__)
+                    ] = model.__module__ + "." + model.__name__
 
 
 #######################################################################################
@@ -596,10 +596,12 @@ def get_default_django_settings_module():
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="""
+    parser = argparse.ArgumentParser(
+        description="""
             Collect django project information for LSP.
             pure python script that is runned in project environment for using django.
-        """)
+        """
+    )
     parser.add_argument("--django-settings-module", action="store", type=str)
     parser.add_argument("--project-src", action="store", type=str)
     args = parser.parse_args()

@@ -33,7 +33,6 @@ def clear_completions_cache():
 
 
 class TemplateParser:
-
     def __init__(
         self,
         workspace_index: WorkspaceIndex,
@@ -100,6 +99,9 @@ class TemplateParser:
                     stack.append((tag_name, match))
                     break
                 elif match := re_end.match(src_line):
+                    if not stack:
+                        logger.debug("Closing tag has no matching opening tag")
+                        break
                     found_tag, _ = stack.pop()
                     if found_tag != tag_name:
                         # TODO: show warning to user
@@ -167,7 +169,8 @@ class TemplateParser:
 
         script_lines = []
         if re.search(r"{% ?for ", self.document.source):
-            script_lines.append(dedent('''
+            script_lines.append(
+                dedent('''
                     class _DjangoForLoop:
                         """Django for loop context"""
                         counter: int
@@ -177,7 +180,8 @@ class TemplateParser:
                         first: bool
                         last: bool
                         parentloop: "_DjangoForLoop"
-                    '''))
+                    ''')
+            )
 
         for variable_name, variable in context.items():
             if variable.type:
