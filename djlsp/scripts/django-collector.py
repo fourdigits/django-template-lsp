@@ -24,7 +24,12 @@ from django.views.generic.detail import SingleObjectMixin
 from django.views.generic.edit import FormMixin
 from django.views.generic.list import MultipleObjectMixin
 
-from djlsp.ast_context_collector import AstContextCollector
+SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
+PROJECT_ROOT = os.path.realpath(os.path.join(SCRIPT_DIR, "..", ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from djlsp.ast_context_collector import AstContextCollector  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -457,11 +462,14 @@ class DjangoIndexCollector:
         return template_files
 
     def add_template_context_for_view(self, view):
-        if not issubclass(view, View):
-            # Ensure only class-based views (CBVs) are allowed; function-based
-            # views (FBVs) are not supported
+        if inspect.isclass(view) and issubclass(view, View):
+            self._add_template_context_for_cbv(view)
             return
 
+        if inspect.isfunction(view):
+            self._add_template_context_for_fbv(view)
+
+    def _add_template_context_for_cbv(self, view):
         view_obj = view(request=MagicMock())
 
         try:
@@ -470,36 +478,66 @@ class DjangoIndexCollector:
             template_name = getattr(view, "template_name", None)
 
         if template_name in self.templates:
-            for key in self.ast_context_collector.extract_context_keys(view):
-                self.templates[template_name]["context"].setdefault(key, None)
+            ast_context = self._collect_ast_context_for_view(view)
+            heuristic_context = self._collect_heuristic_context_for_view(view, view_obj)
+            self._merge_template_context(
+                template_name=template_name,
+                ast_context=ast_context,
+                heuristic_context=heuristic_context,
+            )
 
-            if issubclass(view, SingleObjectMixin) and hasattr(view, "model"):
-                context = {"object": self.get_type_full_name(view.model)}
-                try:
-                    context_name = view_obj.get_context_object_name(view.model)
-                    if context_name:
-                        context[context_name] = context["object"]
-                except Exception:
-                    pass
-                self.templates[template_name]["context"].update(context)
-            if issubclass(view, MultipleObjectMixin):
-                try:
-                    paginator = self.get_type_full_name(view.paginator_class)
-                except Exception:
-                    paginator = "django.core.paginator.Paginator"
+    def _add_template_context_for_fbv(self, view):
+        ast_collector = self.ast_context_collector
+        render_contexts = ast_collector.extract_function_render_contexts(view)
+        for render_context in render_contexts:
+            if render_context.template_name in self.templates:
+                ast_context = {key: None for key in render_context.context_keys}
+                self._merge_template_context(
+                    template_name=render_context.template_name,
+                    ast_context=ast_context,
+                    heuristic_context={},
+                )
 
-                self.templates[template_name]["context"].update(
-                    {
-                        "paginator": paginator,
-                        "page_obj": "django.core.paginator.Page",
-                        "is_paginated": "bool",
-                        "object_list": "django.db.models.QuerySet",
-                    }
-                )
-            if issubclass(view, FormMixin) and hasattr(view, "form_class"):
-                self.templates[template_name]["context"].update(
-                    {"form": self.get_type_full_name(view.form_class)}
-                )
+    def _collect_ast_context_for_view(self, view) -> dict:
+        return {
+            key: None for key in self.ast_context_collector.extract_context_keys(view)
+        }
+
+    def _collect_heuristic_context_for_view(self, view, view_obj) -> dict:
+        context = {}
+        if issubclass(view, SingleObjectMixin) and hasattr(view, "model"):
+            context["object"] = self.get_type_full_name(view.model)
+            try:
+                context_name = view_obj.get_context_object_name(view.model)
+                if context_name:
+                    context[context_name] = context["object"]
+            except Exception:
+                pass
+
+        if issubclass(view, MultipleObjectMixin):
+            try:
+                paginator = self.get_type_full_name(view.paginator_class)
+            except Exception:
+                paginator = "django.core.paginator.Paginator"
+
+            context.update(
+                {
+                    "paginator": paginator,
+                    "page_obj": "django.core.paginator.Page",
+                    "is_paginated": "bool",
+                    "object_list": "django.db.models.QuerySet",
+                }
+            )
+        if issubclass(view, FormMixin) and hasattr(view, "form_class"):
+            context["form"] = self.get_type_full_name(view.form_class)
+
+        return context
+
+    def _merge_template_context(self, *, template_name, ast_context, heuristic_context):
+        template_context = self.templates[template_name]["context"]
+        for key, value in ast_context.items():
+            template_context.setdefault(key, value)
+        template_context.update(heuristic_context)
 
     def _parse_template(self, template: Template) -> dict:
         extends = None

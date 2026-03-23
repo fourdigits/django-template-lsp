@@ -1,7 +1,9 @@
 import json
 import os
-import shutil
 import subprocess
+import sys
+
+import pytest
 
 from djlsp.index import WorkspaceIndex
 from djlsp.server import DJANGO_COLLECTOR_SCRIPT_PATH
@@ -14,10 +16,22 @@ DJANGO_TEST_SETTINGS_MODULE = "django_test.settings"
 
 
 def test_django_collect():
+    python_executable = sys.executable
+    django_available = (
+        subprocess.run(
+            [python_executable, "-c", "import django"],
+            check=False,
+            capture_output=True,
+        ).returncode
+        == 0
+    )
+    if not django_available:
+        pytest.skip("Django not available in subprocess interpreter")
+
     django_data = json.loads(
         subprocess.check_output(
             [
-                shutil.which("python"),  # Get tox python path
+                python_executable,  # Get tox python path
                 DJANGO_COLLECTOR_SCRIPT_PATH,
                 f"--django-settings-module={DJANGO_TEST_SETTINGS_MODULE}",
                 f"--project-src={DJANGO_TEST_PROJECT_SRC}",
@@ -45,9 +59,18 @@ def test_django_collect():
 
     assert "django_app.js" in index.static_files
     assert "django_app:index" in index.urls
+    assert "django_app:object" in index.urls
+    assert "django_app:function" in index.urls
     assert "from_ast_assignment" in index.templates["django_app.html"].context
     assert "from_ast_update" in index.templates["django_app.html"].context
     assert "from_ast_merge" in index.templates["django_app.html"].context
+    assert "from_fbv_assignment" in index.templates["django_app.html"].context
+    assert "from_fbv_alias" in index.templates["django_app.html"].context
+    assert "from_fbv_return" in index.templates["django_app.html"].context
+    assert (
+        index.templates["django_app.html"].context["object"].type
+        == "django.contrib.auth.models.User"
+    )
     assert set(index.file_watcher_globs) == {
         "**/templates/**",
         "**/templatetags/**",
