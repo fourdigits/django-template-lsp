@@ -433,7 +433,7 @@ def initialized(ls: DjangoTemplateLanguageServer, params: InitializeParams):
 @server.feature(
     TEXT_DOCUMENT_COMPLETION,
     CompletionOptions(
-        trigger_characters=[" ", "|", "'", '"', "."], resolve_provider=True
+        trigger_characters=[" ", "|", "'", '"', ".", "-"], resolve_provider=True
     ),
 )
 def completions(ls: DjangoTemplateLanguageServer, params: CompletionParams):
