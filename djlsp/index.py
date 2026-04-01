@@ -57,6 +57,7 @@ class WorkspaceIndex:
     libraries: dict[str, Library] = field(default_factory=dict)
     templates: dict[str, Template] = field(default_factory=dict)
     global_template_context: dict[str, Variable] = field(default_factory=dict)
+    plugin_data: dict = field(default_factory=dict)
 
     def update(self, django_data: dict):
         self.file_watcher_globs = django_data.get(
@@ -121,3 +122,5 @@ class WorkspaceIndex:
             )
             for name, type_ in django_data.get("global_template_context", {}).items()
         }
+
+        self.plugin_data = django_data.get("plugin_data", {})

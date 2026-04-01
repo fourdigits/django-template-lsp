@@ -27,6 +27,9 @@ requires-python = ">=3.9"
 djlsp = "djlsp.cli:main"
 django-template-lsp = "djlsp.cli:main"
 
+[project.entry-points."djlsp.collector_plugins"]
+wagtail = "djlsp.contrib.wagtail:WagtailCollectorPlugin"
+
 [project.optional-dependencies]
 dev = [
     "tox",

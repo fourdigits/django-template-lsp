@@ -7,6 +7,7 @@ import os
 import re
 import sys
 from dataclasses import dataclass
+from importlib.metadata import entry_points
 from unittest.mock import MagicMock, patch
 
 import django
@@ -196,6 +197,7 @@ class DjangoIndexCollector:
         self.libraries = {}
         self.templates: dict[str, Template] = {}
         self.global_template_context = {}
+        self.plugin_data: dict = {}
 
     def collect(self):
         self.file_watcher_globs = self.get_file_watcher_globs()
@@ -205,8 +207,17 @@ class DjangoIndexCollector:
         self.libraries = self.get_libraries()
         self.global_template_context = self.get_global_template_context()
 
-        # Third party collectors
-        self.collect_for_wagtail()
+        # Run collector plugins registered via djlsp.collector_plugins entry points
+        self._run_collector_plugins()
+
+    def _run_collector_plugins(self):
+        for ep in entry_points(group="djlsp.collector_plugins"):
+            try:
+                plugin_cls = ep.load()
+                plugin_cls().collect(self)
+                logger.debug("Ran collector plugin: %s", ep.name)
+            except Exception:
+                logger.error("Collector plugin %r failed", ep.name, exc_info=True)
 
     def to_json(self):
         return json.dumps(
@@ -217,6 +228,7 @@ class DjangoIndexCollector:
                 "libraries": self.libraries,
                 "templates": self.templates,
                 "global_template_context": self.global_template_context,
+                "plugin_data": self.plugin_data,
             },
             indent=4,
         )
@@ -554,26 +566,6 @@ class DjangoIndexCollector:
             if context := TEMPLATE_CONTEXT_PROCESSORS.get(module_path):
                 global_context.update(context)
         return global_context
-
-    # Third party: Wagtail
-    # ---------------------------------------------------------------------------------
-    def collect_for_wagtail(self):
-        try:
-            from wagtail.models import Page
-        except ImportError:
-            return
-        for model in apps.get_models():
-            if issubclass(model, Page) and model.template in self.templates:
-                self.templates[model.template]["context"].update(
-                    {
-                        "page": model.__module__ + "." + model.__name__,
-                        "self": model.__module__ + "." + model.__name__,
-                    }
-                )
-                if model.context_object_name:
-                    self.templates[model.template]["context"][
-                        model.context_object_name
-                    ] = model.__module__ + "." + model.__name__
 
 
 #######################################################################################
