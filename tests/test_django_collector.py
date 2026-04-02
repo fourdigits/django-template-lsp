@@ -52,3 +52,5 @@ def test_django_collect():
         "**/test-templates-folder/**",
         "**/test-static-folder/**",
     }
+
+    assert isinstance(index.plugin_data, dict)

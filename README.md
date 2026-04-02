@@ -81,6 +81,111 @@ type hint support is provided directly in the template files:
 {# type blog: blogs.models.Blog #}
 ```
 
+## Plugin system
+
+Django Template LSP supports a plugin system via Python
+[entry points](https://packaging.python.org/en/latest/specifications/entry-points/).
+Plugins are distributed as separate packages and are automatically discovered at
+runtime. Three plugin types are available.
+
+### Collector plugins
+
+Collector plugins run inside the Django subprocess (alongside `django-collector.py`)
+and can extend or modify the data collected from a Django project — for example,
+to add template context variables from a custom framework.
+
+```python
+# mypackage/plugin.py
+from djlsp.plugins import CollectorPlugin
+
+class MyCollectorPlugin(CollectorPlugin):
+    def collect(self, collector) -> None:
+        # `collector` exposes these mutable attributes:
+        #   templates: dict[str, dict]
+        #   urls: dict[str, dict]
+        #   libraries: dict[str, dict]
+        #   static_files: list[str]
+        #   global_template_context: dict[str, str | None]
+        #   file_watcher_globs: list[str]
+        #   plugin_data: dict  ← custom data for parser/context plugins
+        collector.global_template_context["my_global"] = "mypackage.MyClass"
+
+        # Store custom data to be read by a parser or context plugin
+        collector.plugin_data["my_custom_data"] = ["foo", "bar"]
+```
+
+Custom data stored in `collector.plugin_data` is passed through the collector
+JSON and becomes available in parser and context plugins as
+`self.workspace_index.plugin_data`:
+
+```python
+class MyParserPlugin(ParserPlugin):
+    def completions(self, line: int, character: int) -> list:
+        items = self.workspace_index.plugin_data.get("my_custom_data", [])
+        ...
+```
+
+Register it in your `pyproject.toml`:
+
+```toml
+[project.entry-points."djlsp.collector_plugins"]
+myplugin = "mypackage.plugin:MyCollectorPlugin"
+```
+
+### Parser plugins
+
+Parser plugins run in the LSP server process and can provide completions, hover
+documentation, and goto-definition for cases not handled by the built-in matchers.
+They are called as a fallback when no built-in matcher fires.
+
+```python
+from djlsp.plugins import ParserPlugin
+
+class MyParserPlugin(ParserPlugin):
+    def completions(self, line: int, character: int) -> list:
+        return []  # return lsprotocol CompletionItem instances
+
+    def hover(self, line: int, character: int):
+        return None  # return an lsprotocol Hover instance or None
+
+    def goto_definition(self, line: int, character: int):
+        return None  # return an lsprotocol Location instance or None
+```
+
+Register it in your `pyproject.toml`:
+
+```toml
+[project.entry-points."djlsp.parser_plugins"]
+myplugin = "mypackage.plugin:MyParserPlugin"
+```
+
+### Context plugins
+
+Context plugins run in the LSP server process and can supply additional template
+context variables to supplement those collected during data collection.
+
+```python
+from djlsp.plugins import ContextPlugin
+from djlsp.index import Variable
+
+class MyContextPlugin(ContextPlugin):
+    def get_context(self, *, line: int, character: int, context: dict) -> dict:
+        return {"my_var": Variable(type="mypackage.MyModel")}
+```
+
+Register it in your `pyproject.toml`:
+
+```toml
+[project.entry-points."djlsp.context_plugins"]
+myplugin = "mypackage.plugin:MyContextPlugin"
+```
+
+### Built-in plugins
+
+| Entry point group | Plugin name | Description |
+|---|---|---|
+| `djlsp.collector_plugins` | `wagtail` | Adds Wagtail `Page` model context variables to their bound templates. Activates automatically when `wagtail` is importable. |
+
 ## Editors
 
 ### Helix

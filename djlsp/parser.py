@@ -20,6 +20,7 @@ from pygls.workspace import TextDocument
 
 from djlsp.constants import BUILTIN
 from djlsp.index import Variable, WorkspaceIndex
+from djlsp.plugins import get_context_plugin_classes, get_parser_plugin_classes
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,14 @@ class TemplateParser:
         self.workspace_index: WorkspaceIndex = workspace_index
         self.jedi_project: jedi.Project = jedi_project
         self.document: TextDocument = document
+        self._parser_plugins = [
+            cls(workspace_index, jedi_project, document)
+            for cls in get_parser_plugin_classes()
+        ]
+        self._context_plugins = [
+            cls(workspace_index, jedi_project, document)
+            for cls in get_context_plugin_classes()
+        ]
 
     @cached_property
     def loaded_libraries(self):
@@ -148,6 +157,14 @@ class TemplateParser:
                 for variable in match.group(1).split(" "):
                     if variable_stripped := variable.strip():
                         context[variable_stripped] = Variable()
+
+        for plugin in self._context_plugins:
+            try:
+                context.update(
+                    plugin.get_context(line=line, character=character, context=context)
+                )
+            except Exception:
+                logger.warning("Context plugin %r failed", plugin, exc_info=True)
 
         return context
 
@@ -329,6 +346,25 @@ class TemplateParser:
                             comp.sort_text if comp.sort_text else comp.label
                         ),
                     )
+                )
+
+        for plugin in self._parser_plugins:
+            try:
+                items = plugin.completions(line, character)
+                if items:
+                    return list(
+                        sorted(
+                            items,
+                            key=lambda comp: (
+                                comp.sort_text if comp.sort_text else comp.label
+                            ),
+                        )
+                    )
+            except Exception:
+                logger.warning(
+                    "Parser plugin %r completions failed",
+                    plugin,
+                    exc_info=True,
                 )
         return []
 
@@ -575,6 +611,14 @@ class TemplateParser:
         for regex, hover in matchers:
             if match := regex.match(line_fragment):
                 return hover(line, character, match)
+
+        for plugin in self._parser_plugins:
+            try:
+                result = plugin.hover(line, character)
+                if result is not None:
+                    return result
+            except Exception:
+                logger.warning("Parser plugin %r hover failed", plugin, exc_info=True)
         return None
 
     def get_url_hover(self, line, character, match: Match):
@@ -660,6 +704,16 @@ class TemplateParser:
         for regex, definition in matchers:
             if match := regex.match(line_fragment):
                 return definition(line, character, match)
+
+        for plugin in self._parser_plugins:
+            try:
+                result = plugin.goto_definition(line, character)
+                if result is not None:
+                    return result
+            except Exception:
+                logger.warning(
+                    "Parser plugin %r goto_definition failed", plugin, exc_info=True
+                )
         return None
 
     def create_location(self, location, path, line):
