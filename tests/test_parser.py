@@ -204,7 +204,7 @@ def test_completion_context_with_same_symbol_name():
             (1, 9),
             "capitalize",
             "(function) capitalize",
-            "capitalize() -> str\n\nReturn a capitalized version of the string.",
+            "capitalize()",
         ),
         (
             "{# type abc: list[jedi.Script] | dict[str, jedi.Script] #}\n{{ abc.0.",
