@@ -80,6 +80,17 @@ class DjangoTemplateLanguageServer(LanguageServer):
                 return src_path
         return self.workspace.root_path
 
+    @staticmethod
+    def _venv_python(env_path):
+        """The python interpreter path inside the venv, cross-platform."""
+        candidates = (
+            os.path.join(env_path, "bin", "python"),
+            os.path.join(env_path, "Scripts", "python.exe"),
+        )
+        for candidate in candidates:
+            if os.path.exists(candidate):
+                return candidate
+
     @cached_property
     def project_env_path(self):
         for env_dir in self.env_directories:
@@ -88,7 +99,7 @@ class DjangoTemplateLanguageServer(LanguageServer):
                 if os.path.isabs(env_dir)
                 else os.path.join(self.workspace.root_path, env_dir)
             )
-            if os.path.exists(os.path.join(env_path, "bin", "python")):
+            if self._venv_python(env_path):
                 return os.path.join(env_path)
 
     @property
@@ -175,7 +186,7 @@ class DjangoTemplateLanguageServer(LanguageServer):
             loaded_from_cache = True
         elif self.project_env_path:
             django_data = self._get_django_data_from_python_path(
-                os.path.join(self.project_env_path, "bin", "python")
+                self._venv_python(self.project_env_path)
             )
         elif self._has_valid_docker_service():
             django_data = self._get_django_data_from_docker()

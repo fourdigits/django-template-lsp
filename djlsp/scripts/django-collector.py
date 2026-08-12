@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import sys
+from pathlib import Path
 from dataclasses import dataclass
 from unittest.mock import MagicMock, patch
 
@@ -221,6 +222,17 @@ class DjangoIndexCollector:
             indent=4,
         )
 
+    def get_relative_index_path(self, path):
+        """Return location and relative_path for a file, ignoring OS differences."""
+        file_path = Path(path)
+        for location, prefix in (
+            ("src", self.project_src_path),
+            ("env", sys.prefix),
+        ):
+            if file_path.is_relative_to(prefix):
+                return location, file_path.relative_to(prefix).as_posix()
+        return None, None
+
     def get_source_from_type(self, type_):
         def unwrap(func):
             while hasattr(func, "__wrapped__"):
@@ -236,12 +248,9 @@ class DjangoIndexCollector:
             logger.error(e)
             return ""
 
-        if source_file.startswith(self.project_src_path):
-            path = source_file.removeprefix(self.project_src_path).lstrip("/")
-            return f"src:{path}:{line}"
-        elif source_file.startswith(sys.prefix):
-            path = source_file.removeprefix(sys.prefix).lstrip("/")
-            return f"env:{path}:{line}"
+        location, path = self.get_relative_index_path(source_file)
+        if location:
+            return f"{location}:{path}:{line}"
         return ""
 
     def get_type_full_name(self, type_):
@@ -504,13 +513,8 @@ class DjangoIndexCollector:
             if match := self.re_block.match(line):
                 blocks.add(match.group(1))
 
-        path = ""
-        if template.path.startswith(self.project_src_path):
-            path = (
-                f"src:{template.path.removeprefix(self.project_src_path).lstrip('/')}"
-            )
-        elif template.path.startswith(sys.prefix):
-            path = f"env:{template.path.removeprefix(sys.prefix).lstrip('/')}"
+        location, rel_path = self.get_relative_index_path(template.path)
+        path = f"{location}:{rel_path}" if location else ""
 
         return {
             "path": path,
