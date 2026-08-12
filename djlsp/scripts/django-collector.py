@@ -17,7 +17,6 @@ from django.contrib.auth import get_user_model
 from django.contrib.staticfiles.finders import get_finders
 from django.template.backends.django import get_installed_libraries
 from django.template.engine import Engine
-from django.template.library import InvalidTemplateLibrary
 from django.template.utils import get_app_template_dirs
 from django.urls import URLPattern, URLResolver
 from django.views.generic import View
@@ -365,44 +364,12 @@ class DjangoIndexCollector:
             libraries["__builtins__"]["tags"].update(parsed_lib["tags"])
             libraries["__builtins__"]["filters"].update(parsed_lib["filters"])
 
-        # Get Django templatetags
-        django_path = inspect.getabsfile(django.templatetags)
-        django_mod_files = os.listdir(os.path.dirname(django_path))
-        for django_lib in [
-            i[:-3] for i in django_mod_files if i.endswith(".py") and i[0] != "_"
-        ]:
-            try:
-                lib = get_installed_libraries()[django_lib]
-                lib = importlib.import_module(lib).register
-                libraries[django_lib] = self._parse_library(lib)
-            except (InvalidTemplateLibrary, KeyError) as e:
-                logger.error(f"Failed to parse django templatetag {django_lib}: {e}")
-                continue
-
-        for app_config in apps.get_app_configs():
-            app = app_config.name
-            try:
-                templatetag_mod = __import__(app + ".templatetags", {}, {}, [""])
-            except ImportError:
-                continue
-
-            try:
-                mod_path = inspect.getabsfile(templatetag_mod)
-            except TypeError as e:
-                logger.error(f"Failed getting path for ({app}) templatetags: {e}")
-                continue
-            mod_files = os.listdir(os.path.dirname(mod_path))
-            tag_files = [i[:-3] for i in mod_files if i.endswith(".py") and i[0] != "_"]
-
-            for taglib in tag_files:
-                try:
-                    lib = get_installed_libraries()[taglib]
-                    lib = importlib.import_module(lib).register
-                except (InvalidTemplateLibrary, KeyError) as e:
-                    logger.error(f"Failed to parse library ({taglib}): {e}")
-                    continue
-
-                libraries[taglib] = self._parse_library(lib)
+        # Django has already discovered the modules that expose a ``register``
+        # object. Iterating the files in templatetags would also include ordinary
+        # helper modules, which cannot be loaded with ``{% load %}``.
+        for library_name, module_path in get_installed_libraries().items():
+            lib = importlib.import_module(module_path).register
+            libraries[library_name] = self._parse_library(lib)
 
         # Add node tags
         for lib_name, tags in LIBRARIES_NODE_TAGS.items():
