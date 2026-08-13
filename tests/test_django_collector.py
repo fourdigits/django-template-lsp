@@ -14,21 +14,24 @@ DJANGO_TEST_SETTINGS_MODULE = "django_test.settings"
 
 
 def test_django_collect():
-    django_data = json.loads(
-        subprocess.check_output(
-            [
-                shutil.which("python"),  # Get tox python path
-                DJANGO_COLLECTOR_SCRIPT_PATH,
-                f"--django-settings-module={DJANGO_TEST_SETTINGS_MODULE}",
-                f"--project-src={DJANGO_TEST_PROJECT_SRC}",
-            ]
-        )
+    result = subprocess.run(
+        [
+            shutil.which("python"),  # Get tox python path
+            DJANGO_COLLECTOR_SCRIPT_PATH,
+            f"--django-settings-module={DJANGO_TEST_SETTINGS_MODULE}",
+            f"--project-src={DJANGO_TEST_PROJECT_SRC}",
+        ],
+        capture_output=True,
+        check=True,
     )
+    django_data = json.loads(result.stdout)
 
     index = WorkspaceIndex()
     index.update(django_data)
 
     assert "django_app_tag" in index.libraries["django_app"].tags
+    assert "base" not in index.libraries
+    assert "Failed to parse library (base)" not in result.stderr.decode()
     assert index.libraries["django_app"].tags["django_app_tag"].docs == "Docs for tag"
 
     assert "django_app_filter" in index.libraries["django_app"].filters
